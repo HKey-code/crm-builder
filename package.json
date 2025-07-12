@@ -1,0 +1,8 @@
+{
+  "name": "crm-builder",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "libs/*"
+  ]
+}
