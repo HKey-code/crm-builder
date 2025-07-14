@@ -4,5 +4,18 @@
   "workspaces": [
     "apps/*",
     "libs/*"
-  ]
+  ],
+  "dependencies": {
+    "@apollo/server": "^4.12.2",
+    "@nestjs/apollo": "^13.1.0",
+    "@nestjs/cli": "^11.0.7",
+    "@nestjs/common": "^11.1.3",
+    "@nestjs/core": "^11.1.3",
+    "@nestjs/graphql": "^13.1.0",
+    "@nestjs/platform-express": "^11.1.3",
+    "@nestjs/testing": "^11.1.3",
+    "graphql": "^16.11.0",
+    "rxjs": "^7.8.1",
+    "typescript": "^5.4.5"
+  }
 }
