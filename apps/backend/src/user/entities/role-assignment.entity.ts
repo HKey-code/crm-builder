@@ -1,0 +1,1 @@
+// RoleAssignment entity stub

@@ -1,0 +1,1 @@
+// CurrentTenant decorator stub

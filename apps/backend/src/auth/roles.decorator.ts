@@ -1,0 +1,1 @@
+// Roles decorator stub
