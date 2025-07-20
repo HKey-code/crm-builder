@@ -126,20 +126,19 @@ jobs:
           cd apps/backend
           npm ci
           npm run build
-          cp package.json dist/
           
           # Create web.config for Azure App Service
-          cat > dist/web.config << 'EOF'
+          cat > web.config << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <configuration>
             <system.webServer>
               <handlers>
-                <add name="iisnode" path="main.js" verb="*" modules="iisnode"/>
+                <add name="iisnode" path="dist/main.js" verb="*" modules="iisnode"/>
               </handlers>
               <rewrite>
                 <rules>
                   <rule name="NodeInspector" patternSyntax="ECMAScript" stopProcessing="true">
-                    <match url="^main.js\/debug[\/]?" />
+                    <match url="^dist\/main.js\/debug[\/]?" />
                   </rule>
                   <rule name="StaticContent">
                     <action type="Rewrite" url="public{REQUEST_URI}"/>
@@ -148,7 +147,7 @@ jobs:
                     <conditions>
                       <add input="{REQUEST_FILENAME}" matchType="IsFile" negate="True"/>
                     </conditions>
-                    <action type="Rewrite" url="main.js"/>
+                    <action type="Rewrite" url="dist/main.js"/>
                   </rule>
                 </rules>
               </rewrite>
@@ -156,21 +155,14 @@ jobs:
           </configuration>
           EOF
           
-          # Install production dependencies in dist/
-          cd dist
-          npm ci --only=production
-          cd ..
-          
           # Verify main.js exists
           if [ ! -f "dist/main.js" ]; then
             echo "❌ ERROR: dist/main.js not found!"
             exit 1
           fi
           
-          # Package only dist/ contents
-          cd dist
-          zip -r ../../../release.zip ./*
-          cd ../..
+          # Package the full backend project root (excluding node_modules)
+          zip -r ../../release.zip . -x "node_modules/*" ".git/*" "*.log"
           
           # Verify deployment package contents
           echo "🔍 Verifying deployment package contents..."
@@ -207,6 +199,7 @@ jobs:
           app-name: ${{ matrix.app_name }}
           publish-profile: ${{ secrets[matrix.publish_profile_secret] }}
           package: release.zip
+          startup-command: 'npm ci --only=production && npm run start:prod'
 
 
 
