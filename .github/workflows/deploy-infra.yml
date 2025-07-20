@@ -1,0 +1,192 @@
+name: Deploy Azure Infrastructure
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'devops/iac/**'
+      - '.github/workflows/deploy-infra.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'devops/iac/**'
+      - '.github/workflows/deploy-infra.yml'
+  workflow_dispatch:
+    inputs:
+      tenant_id:
+        description: 'Tenant ID for deployment (dev, staging, prod)'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      environment:
+        description: 'Environment name'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      location:
+        description: 'Azure region'
+        required: true
+        default: 'East US'
+        type: string
+      resource_group:
+        description: 'Resource group name'
+        required: true
+        default: 'rg-crm-builder-dev'
+        type: string
+
+env:
+  AZURE_CLI_VERSION: '2.0.0'
+
+jobs:
+  validate-and-deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set deployment variables
+        id: vars
+        run: |
+          echo "tenant_id=${{ github.event.inputs.tenant_id || 'dev' }}" >> $GITHUB_OUTPUT
+          echo "environment=${{ github.event.inputs.environment || 'dev' }}" >> $GITHUB_OUTPUT
+          echo "location=${{ github.event.inputs.location || 'East US' }}" >> $GITHUB_OUTPUT
+          echo "resource_group=${{ github.event.inputs.resource_group || 'rg-crm-builder-dev' }}" >> $GITHUB_OUTPUT
+          
+          # Set parameter file based on environment
+          if [[ "${{ github.event.inputs.environment || 'dev' }}" == "dev" ]]; then
+            echo "parameter_file=devops/iac/parameters-dev.json" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event.inputs.environment || 'dev' }}" == "staging" ]]; then
+            echo "parameter_file=devops/iac/parameters-staging.json" >> $GITHUB_OUTPUT
+          else
+            echo "parameter_file=devops/iac/parameters-prod.json" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          enable-AzPSSession: true
+
+      - name: Set Azure CLI version
+        run: |
+          az version
+          az config set core.collect_telemetry=false
+
+      - name: Validate Bicep templates
+        run: |
+          echo "🔍 Validating Bicep templates..."
+          
+          # Validate main template
+          if ! az bicep build --file devops/iac/main.bicep; then
+            echo "❌ Main Bicep template validation failed"
+            exit 1
+          fi
+          
+          # Validate individual modules
+          for module in app db kv; do
+            if ! az bicep build --file "devops/iac/${module}.bicep"; then
+              echo "❌ ${module}.bicep validation failed"
+              exit 1
+            fi
+          done
+          
+          echo "✅ All Bicep templates validated successfully"
+
+      - name: Check parameter file exists
+        run: |
+          if [[ ! -f "${{ steps.vars.outputs.parameter_file }}" ]]; then
+            echo "❌ Parameter file ${{ steps.vars.outputs.parameter_file }} not found"
+            echo "Available parameter files:"
+            ls -la devops/iac/parameters-*.json || echo "No parameter files found"
+            exit 1
+          fi
+          echo "✅ Parameter file ${{ steps.vars.outputs.parameter_file }} found"
+
+      - name: Create resource group if not exists
+        run: |
+          echo "🏗️ Creating resource group if it doesn't exist..."
+          az group create \
+            --name "${{ steps.vars.outputs.resource_group }}" \
+            --location "${{ steps.vars.outputs.location }}" \
+            --output table || echo "Resource group already exists or creation failed"
+
+      - name: Deploy infrastructure
+        id: deploy
+        run: |
+          echo "🚀 Deploying infrastructure for tenant: ${{ steps.vars.outputs.tenant_id }}"
+          echo "Environment: ${{ steps.vars.outputs.environment }}"
+          echo "Resource Group: ${{ steps.vars.outputs.resource_group }}"
+          echo "Location: ${{ steps.vars.outputs.location }}"
+          
+          # Deploy with parameter file
+          deployment_output=$(az deployment group create \
+            --resource-group "${{ steps.vars.outputs.resource_group }}" \
+            --template-file "devops/iac/main.bicep" \
+            --parameters "${{ steps.vars.outputs.parameter_file }}" \
+            --parameters \
+              tenantId="${{ steps.vars.outputs.tenant_id }}" \
+              environment="${{ steps.vars.outputs.environment }}" \
+              location="${{ steps.vars.outputs.location }}" \
+            --verbose \
+            --output json 2>&1)
+          
+          if [ $? -eq 0 ]; then
+            echo "✅ Deployment completed successfully"
+            echo "$deployment_output" > deployment-output.json
+            
+            # Extract key outputs
+            echo "appServiceName=$(echo "$deployment_output" | jq -r '.properties.outputs.appServiceName.value // empty')" >> $GITHUB_OUTPUT
+            echo "appServiceUrl=$(echo "$deployment_output" | jq -r '.properties.outputs.appServiceUrl.value // empty')" >> $GITHUB_OUTPUT
+            echo "databaseServerName=$(echo "$deployment_output" | jq -r '.properties.outputs.databaseServerName.value // empty')" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Deployment failed"
+            echo "Error details:"
+            echo "$deployment_output"
+            exit 1
+          fi
+
+      - name: Display deployment outputs
+        if: success()
+        run: |
+          echo "📊 Deployment Summary:"
+          echo "======================"
+          echo "App Service Name: ${{ steps.deploy.outputs.appServiceName }}"
+          echo "App Service URL: ${{ steps.deploy.outputs.appServiceUrl }}"
+          echo "Database Server: ${{ steps.deploy.outputs.databaseServerName }}"
+          echo "Resource Group: ${{ steps.vars.outputs.resource_group }}"
+          echo "Tenant ID: ${{ steps.vars.outputs.tenant_id }}"
+          echo "Environment: ${{ steps.vars.outputs.environment }}"
+
+      - name: Upload deployment artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-output-${{ steps.vars.outputs.tenant_id }}-${{ steps.vars.outputs.environment }}
+          path: deployment-output.json
+          retention-days: 30
+
+      - name: Handle deployment failure
+        if: failure()
+        run: |
+          echo "❌ Infrastructure deployment failed"
+          echo "Please check the logs above for detailed error information"
+          echo ""
+          echo "Common troubleshooting steps:"
+          echo "1. Verify Azure credentials have sufficient permissions"
+          echo "2. Check if resource names are unique across your subscription"
+          echo "3. Ensure the parameter file exists and is valid"
+          echo "4. Verify the target resource group exists or can be created"
+          echo ""
+          echo "For more help, see: devops/iac/README.md" 

@@ -2,17 +2,11 @@ import { Module } from '@nestjs/common';
 import { UserService } from './user.service';
 import { UserController } from './user.controller';
 import { UserResolver } from './user.resolver';
-import { PrismaService } from '../prisma.service';
-import { Role } from './entities/role.enum';
-import { registerEnumType } from '@nestjs/graphql';
-
-// Register the enum BEFORE the module is defined
-registerEnumType(Role, {
-  name: 'Role', // This name will appear in the GraphQL schema
-});
+import { SharedModule } from '../shared.module';
 
 @Module({
-  providers: [UserService, UserResolver, PrismaService],
+  imports: [SharedModule],
+  providers: [UserService, UserResolver],
   controllers: [UserController],
 })
 export class UserModule {}

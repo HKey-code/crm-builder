@@ -1,7 +1,6 @@
 import { InputType, Field, PartialType, ID } from '@nestjs/graphql';
 import { CreateUserInput } from './create-user.input';
-import { IsOptional, IsString, IsArray, IsEnum } from 'class-validator';
-import { Role } from '../entities/role.enum';
+import { IsOptional, IsString, IsArray } from 'class-validator';
 
 @InputType()
 export class UpdateUserInput extends PartialType(CreateUserInput) {
@@ -23,8 +22,8 @@ export class UpdateUserInput extends PartialType(CreateUserInput) {
   @IsArray()
   spokenLanguages?: string[];
 
-  @Field(() => Role, { nullable: true })
+  @Field({ nullable: true })
   @IsOptional()
-  @IsEnum(Role)
-  role?: Role;
+  @IsString()
+  roleId?: string;
 }

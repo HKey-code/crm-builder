@@ -7,10 +7,14 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Role {
-  Admin
-  Manager
-  Agent
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  users       User[]
+  roleAssignments RoleAssignment[]
+  permissionRules PermissionRule[]
 }
 
 model Tenant {
@@ -24,7 +28,19 @@ model Tenant {
   createdAt       DateTime @default(now())
   users           User[]
   roleAssignments RoleAssignment[]
-  customers       Customer[]   // Add this line
+  customers       Customer[]
+  pages           Page[]
+  layouts         Layout[]
+  componentTypes  ComponentType[]
+  dataSources     DataSource[]
+  fieldDefinitions FieldDefinition[]
+  permissionRules PermissionRule[]
+  contacts        Contact[]
+  moduleLicenses  ModuleLicense[]
+  opportunities   Opportunity[]
+  cases           Case[]
+  marketingCampaigns MarketingCampaign[]
+  portalActivities PortalActivity[]
 }
 
 model User {
@@ -33,7 +49,8 @@ model User {
   name            String?
   preferredLanguage String?
   spokenLanguages String[]
-  role            Role
+  roleId          String
+  role            Role     @relation(fields: [roleId], references: [id])
   tenantId        String
   tenant          Tenant   @relation(fields: [tenantId], references: [id])
   roleAssignments RoleAssignment[]
@@ -45,7 +62,8 @@ model RoleAssignment {
   tenantId  String
   scope     String
   label     String
-  role      Role
+  roleId    String
+  role      Role     @relation(fields: [roleId], references: [id])
   createdAt DateTime @default(now())
 
   user      User     @relation(fields: [userId], references: [id])
@@ -60,4 +78,261 @@ model Customer {
   updatedAt        DateTime @updatedAt
   tenantId         String
   tenant           Tenant   @relation(fields: [tenantId], references: [id])
+  contacts         Contact[]
+}
+
+// UI Engine Models
+
+model Page {
+  id                  String   @id @default(uuid())
+  name                String
+  slug                String   @unique
+  layoutId            String?
+  layout              Layout?  @relation(fields: [layoutId], references: [id])
+  dataSourceId        String?
+  dataSource          DataSource? @relation(fields: [dataSourceId], references: [id])
+  visibilityConditions Json?
+  tenantId            String
+  tenant              Tenant   @relation(fields: [tenantId], references: [id])
+  sections            Section[]
+  permissionRules    PermissionRule[]
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([slug, tenantId])
+}
+
+model Layout {
+  id          String   @id @default(uuid())
+  name        String
+  template    String   // JSON string defining the layout structure
+  breakpoints Json     // Responsive breakpoint configuration
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  pages       Page[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Section {
+  id                  String   @id @default(uuid())
+  name                String
+  position            Int
+  layoutArea          String   // e.g., "header", "sidebar", "main", "footer"
+  visibilityConditions Json?
+  pageId              String
+  page                Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  componentInstances  ComponentInstance[]
+  permissionRules    PermissionRule[]
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model ComponentType {
+  id              String   @id @default(uuid())
+  name            String
+  inputSchema     Json     // JSON schema for component props
+  defaultProps    Json     // Default property values
+  allowedDataTypes Json    // Array of allowed data types
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+  componentInstances ComponentInstance[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model ComponentInstance {
+  id              String   @id @default(uuid())
+  componentTypeId String
+  componentType   ComponentType @relation(fields: [componentTypeId], references: [id])
+  props           Json     // Component-specific properties
+  binding         BindingConfig?
+  interactions    Interaction[]
+  sectionId       String
+  section         Section  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  permissionRules PermissionRule[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model FieldDefinition {
+  id             String   @id @default(uuid())
+  name           String
+  dataType       String   // e.g., "string", "number", "date", "boolean"
+  validationRules Json?
+  defaultValue   Json?
+  isVisible      Boolean  @default(true)
+  tenantId       String
+  tenant         Tenant   @relation(fields: [tenantId], references: [id])
+  permissionRules PermissionRule[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model DataSource {
+  id          String   @id @default(uuid())
+  name        String
+  type        String   // e.g., "rest", "graphql", "prisma"
+  query       String   // Query string or endpoint
+  params      Json?    // Query parameters
+  authContext Json?    // Authentication context
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  pages       Page[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model BindingConfig {
+  id              String   @id @default(uuid())
+  sourceField     String   // Field name from data source
+  targetProp      String   // Component property to bind to
+  transform       Json?    // Transformation function
+  defaultFallback Json?    // Default value if binding fails
+  componentInstanceId String @unique
+  componentInstance ComponentInstance @relation(fields: [componentInstanceId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Interaction {
+  id                String   @id @default(uuid())
+  event             String   // e.g., "click", "submit", "change"
+  action            String   // Action to perform
+  targetComponentId String?  // Target component for the action
+  params            Json?    // Action parameters
+  conditions        Json?    // Conditions for the interaction
+  componentInstanceId String
+  componentInstance  ComponentInstance @relation(fields: [componentInstanceId], references: [id], onDelete: Cascade)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model PermissionRule {
+  id          String   @id @default(uuid())
+  targetType  String   // 'Page' | 'Section' | 'ComponentInstance' | 'FieldDefinition'
+  targetId    String   // ID of the target object
+  permission  String   // 'read' | 'write' | 'configure'
+  condition   String?  // Expression for contextual logic
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  roles       Role[]   // Many-to-many with Role
+  pageId      String?
+  page        Page?    @relation(fields: [pageId], references: [id])
+  sectionId   String?
+  section     Section? @relation(fields: [sectionId], references: [id])
+  componentInstanceId String?
+  componentInstance ComponentInstance? @relation(fields: [componentInstanceId], references: [id])
+  fieldDefinitionId String?
+  fieldDefinition FieldDefinition? @relation(fields: [fieldDefinitionId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Customer360View Models
+
+model Contact {
+  id              String   @id @default(uuid())
+  customerId      String
+  customer        Customer @relation(fields: [customerId], references: [id])
+  firstName       String
+  lastName        String
+  email           String
+  phone           String?
+  title           String?
+  department      String?
+  isPrimary       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+  
+  // Related data from different modules
+  opportunities   Opportunity[]
+  cases           Case[]
+  marketingCampaigns MarketingCampaign[]
+  portalActivities PortalActivity[]
+  
+  @@unique([email, tenantId])
+}
+
+model ModuleLicense {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  moduleName  String   // 'sales', 'service', 'marketing', 'portal'
+  isActive    Boolean  @default(true)
+  expiresAt   DateTime?
+  features    Json?    // Module-specific features enabled
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([tenantId, moduleName])
+}
+
+// Sales Module
+model Opportunity {
+  id              String   @id @default(uuid())
+  contactId       String
+  contact         Contact  @relation(fields: [contactId], references: [id])
+  name            String
+  amount          Decimal  @db.Decimal(10, 2)
+  stage           String   // 'prospecting', 'qualification', 'proposal', 'negotiation', 'closed-won', 'closed-lost'
+  probability     Int      // 0-100
+  expectedCloseDate DateTime?
+  actualCloseDate DateTime?
+  description     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+}
+
+// Service Module
+model Case {
+  id              String   @id @default(uuid())
+  contactId       String
+  contact         Contact  @relation(fields: [contactId], references: [id])
+  caseNumber      String   @unique
+  subject         String
+  description     String?
+  priority        String   // 'low', 'medium', 'high', 'critical'
+  status          String   // 'open', 'in-progress', 'waiting', 'resolved', 'closed'
+  assignedTo      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  resolvedAt      DateTime?
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+}
+
+// Marketing Module
+model MarketingCampaign {
+  id              String   @id @default(uuid())
+  name            String
+  type            String   // 'email', 'social', 'webinar', 'event'
+  status          String   // 'draft', 'active', 'paused', 'completed'
+  startDate       DateTime?
+  endDate         DateTime?
+  budget          Decimal? @db.Decimal(10, 2)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+  contacts        Contact[]
+}
+
+// Portal Module
+model PortalActivity {
+  id              String   @id @default(uuid())
+  contactId       String
+  contact         Contact  @relation(fields: [contactId], references: [id])
+  activityType    String   // 'login', 'download', 'support_request', 'feedback'
+  description     String
+  metadata        Json?    // Additional activity data
+  ipAddress       String?
+  userAgent       String?
+  createdAt       DateTime @default(now())
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
 }

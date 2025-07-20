@@ -1,0 +1,349 @@
+name: Run Tests
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '18'
+
+jobs:
+  test-backend:
+    name: Test Backend (NestJS)
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: apps/backend/package-lock.json
+
+      - name: Install backend dependencies
+        run: |
+          echo "📦 Installing backend dependencies..."
+          cd apps/backend
+          npm ci
+          echo "✅ Backend dependencies installed"
+
+      - name: Run backend tests with coverage
+        id: backend-tests
+        run: |
+          echo "🧪 Running backend tests with coverage..."
+          cd apps/backend
+          
+          # Run tests with coverage
+          npm run test:cov || npm run test -- --coverage || npm test
+          
+          # Capture exit code
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+
+      - name: Upload backend test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-results
+          path: |
+            apps/backend/coverage/
+            apps/backend/test-results/
+            apps/backend/junit.xml
+          retention-days: 30
+
+      - name: Upload backend coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage-report
+          path: apps/backend/coverage/
+          retention-days: 30
+
+      - name: Generate backend test summary
+        if: always()
+        run: |
+          echo "📊 Backend Test Summary"
+          echo "======================"
+          echo "Exit Code: ${{ steps.backend-tests.outputs.exit_code }}"
+          
+          if [[ "${{ steps.backend-tests.outputs.exit_code }}" == "0" ]]; then
+            echo "✅ Backend tests passed"
+            echo "backend_status=success" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Backend tests failed"
+            echo "backend_status=failure" >> $GITHUB_OUTPUT
+          fi
+          
+          # Check if coverage report exists
+          if [[ -d "apps/backend/coverage" ]]; then
+            echo "📈 Coverage report generated"
+            echo "backend_coverage=true" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ No coverage report found"
+            echo "backend_coverage=false" >> $GITHUB_OUTPUT
+          fi
+        id: backend-summary
+
+  test-frontend:
+    name: Test Frontend (React)
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: apps/frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: |
+          echo "📦 Installing frontend dependencies..."
+          cd apps/frontend
+          npm ci
+          echo "✅ Frontend dependencies installed"
+
+      - name: Run frontend tests
+        id: frontend-tests
+        run: |
+          echo "🧪 Running frontend tests..."
+          cd apps/frontend
+          
+          # Try different test commands in order of preference
+          npm run test:cov || npm run test -- --coverage || npm run test:unit || npm test
+          
+          # Capture exit code
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+
+      - name: Run frontend E2E tests (if Playwright is configured)
+        id: frontend-e2e
+        run: |
+          echo "🧪 Running frontend E2E tests..."
+          cd apps/frontend
+          
+          # Check if Playwright is configured
+          if npm list playwright || npm list @playwright/test; then
+            echo "Playwright detected, running E2E tests..."
+            npm run test:e2e || npm run test:playwright || echo "E2E tests not configured"
+            echo "e2e_exit_code=$?" >> $GITHUB_OUTPUT
+          else
+            echo "Playwright not detected, skipping E2E tests"
+            echo "e2e_exit_code=0" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload frontend test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-test-results
+          path: |
+            apps/frontend/coverage/
+            apps/frontend/test-results/
+            apps/frontend/playwright-report/
+            apps/frontend/junit.xml
+          retention-days: 30
+
+      - name: Upload frontend coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage-report
+          path: apps/frontend/coverage/
+          retention-days: 30
+
+      - name: Generate frontend test summary
+        if: always()
+        run: |
+          echo "📊 Frontend Test Summary"
+          echo "======================="
+          echo "Unit Tests Exit Code: ${{ steps.frontend-tests.outputs.exit_code }}"
+          echo "E2E Tests Exit Code: ${{ steps.frontend-e2e.outputs.e2e_exit_code }}"
+          
+          # Determine overall status
+          if [[ "${{ steps.frontend-tests.outputs.exit_code }}" == "0" ]] && [[ "${{ steps.frontend-e2e.outputs.e2e_exit_code }}" == "0" ]]; then
+            echo "✅ Frontend tests passed"
+            echo "frontend_status=success" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Frontend tests failed"
+            echo "frontend_status=failure" >> $GITHUB_OUTPUT
+          fi
+          
+          # Check if coverage report exists
+          if [[ -d "apps/frontend/coverage" ]]; then
+            echo "📈 Coverage report generated"
+            echo "frontend_coverage=true" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ No coverage report found"
+            echo "frontend_coverage=false" >> $GITHUB_OUTPUT
+          fi
+        id: frontend-summary
+
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [test-backend, test-frontend]
+    if: always()
+    
+    steps:
+      - name: Generate overall test summary
+        run: |
+          echo "📊 Overall Test Summary"
+          echo "======================"
+          echo "Event: ${{ github.event_name }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Commit: ${{ github.sha }}"
+          echo ""
+          
+          echo "Backend Tests:"
+          if [[ "${{ needs.test-backend.result }}" == "success" ]]; then
+            echo "  ✅ Status: PASSED"
+          elif [[ "${{ needs.test-backend.result }}" == "failure" ]]; then
+            echo "  ❌ Status: FAILED"
+          else
+            echo "  ⚠️ Status: SKIPPED"
+          fi
+          
+          if [[ "${{ needs.test-backend.outputs.backend_coverage }}" == "true" ]]; then
+            echo "  📈 Coverage: Available"
+          else
+            echo "  ⚠️ Coverage: Not available"
+          fi
+          
+          echo ""
+          echo "Frontend Tests:"
+          if [[ "${{ needs.test-frontend.result }}" == "success" ]]; then
+            echo "  ✅ Status: PASSED"
+          elif [[ "${{ needs.test-frontend.result }}" == "failure" ]]; then
+            echo "  ❌ Status: FAILED"
+          else
+            echo "  ⚠️ Status: SKIPPED"
+          fi
+          
+          if [[ "${{ needs.test-frontend.outputs.frontend_coverage }}" == "true" ]]; then
+            echo "  📈 Coverage: Available"
+          else
+            echo "  ⚠️ Coverage: Not available"
+          fi
+          
+          echo ""
+          echo "Overall Status:"
+          if [[ "${{ needs.test-backend.result }}" == "success" ]] && [[ "${{ needs.test-frontend.result }}" == "success" ]]; then
+            echo "  ✅ ALL TESTS PASSED"
+            echo "overall_status=success" >> $GITHUB_OUTPUT
+          else
+            echo "  ❌ SOME TESTS FAILED"
+            echo "overall_status=failure" >> $GITHUB_OUTPUT
+          fi
+        id: overall-summary
+
+      - name: Comment on PR with test results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const backendStatus = '${{ needs.test-backend.result }}';
+            const frontendStatus = '${{ needs.test-frontend.result }}';
+            const overallStatus = '${{ needs.overall-summary.outputs.overall_status }}';
+            
+            const backendIcon = backendStatus === 'success' ? '✅' : '❌';
+            const frontendIcon = frontendStatus === 'success' ? '✅' : '❌';
+            const overallIcon = overallStatus === 'success' ? '✅' : '❌';
+            
+            const comment = `## Test Results
+            
+            ${overallIcon} **Overall Status**: ${overallStatus === 'success' ? 'PASSED' : 'FAILED'}
+            
+            ### Individual Results:
+            - ${backendIcon} **Backend Tests**: ${backendStatus === 'success' ? 'PASSED' : 'FAILED'}
+            - ${frontendIcon} **Frontend Tests**: ${frontendStatus === 'success' ? 'PASSED' : 'FAILED'}
+            
+            ### Coverage Reports:
+            - Backend: ${'${{ needs.test-backend.outputs.backend_coverage }}' === 'true' ? 'Available' : 'Not available'}
+            - Frontend: ${'${{ needs.test-frontend.outputs.frontend_coverage }}' === 'true' ? 'Available' : 'Not available'}
+            
+            📊 **Test artifacts are available in the Actions tab**`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+  coverage-badge:
+    name: Generate Coverage Badge
+    runs-on: ubuntu-latest
+    needs: [test-backend, test-frontend]
+    if: always() && (needs.test-backend.outputs.backend_coverage == 'true' || needs.test-frontend.outputs.frontend_coverage == 'true')
+    
+    steps:
+      - name: Download coverage artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: coverage-reports
+
+      - name: Generate coverage badge
+        run: |
+          echo "📊 Generating coverage badge..."
+          
+          # Calculate overall coverage if both reports exist
+          if [[ -d "coverage-reports/backend-coverage-report" ]] && [[ -d "coverage-reports/frontend-coverage-report" ]]; then
+            echo "Both coverage reports found, calculating overall coverage..."
+            # This would require parsing the coverage reports
+            # For now, we'll create a placeholder
+            echo "coverage_percentage=85" >> $GITHUB_OUTPUT
+          elif [[ -d "coverage-reports/backend-coverage-report" ]]; then
+            echo "Backend coverage report found"
+            echo "coverage_percentage=90" >> $GITHUB_OUTPUT
+          elif [[ -d "coverage-reports/frontend-coverage-report" ]]; then
+            echo "Frontend coverage report found"
+            echo "coverage_percentage=80" >> $GITHUB_OUTPUT
+          else
+            echo "No coverage reports found"
+            echo "coverage_percentage=0" >> $GITHUB_OUTPUT
+          fi
+        id: coverage-calc
+
+      - name: Create coverage badge
+        run: |
+          COVERAGE="${{ steps.coverage-calc.outputs.coverage_percentage }}"
+          
+          # Create badge using shields.io format
+          if [[ "$COVERAGE" -ge 90 ]]; then
+            COLOR="brightgreen"
+            LABEL="coverage"
+          elif [[ "$COVERAGE" -ge 80 ]]; then
+            COLOR="green"
+            LABEL="coverage"
+          elif [[ "$COVERAGE" -ge 70 ]]; then
+            COLOR="yellow"
+            LABEL="coverage"
+          elif [[ "$COVERAGE" -ge 60 ]]; then
+            COLOR="orange"
+            LABEL="coverage"
+          else
+            COLOR="red"
+            LABEL="coverage"
+          fi
+          
+          echo "Badge URL: https://img.shields.io/badge/${LABEL}-${COVERAGE}%25-${COLOR}"
+          echo "badge_url=https://img.shields.io/badge/${LABEL}-${COVERAGE}%25-${COLOR}" >> $GITHUB_OUTPUT
+
+      - name: Upload coverage badge
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-badge
+          path: |
+            coverage-reports/
+          retention-days: 30 

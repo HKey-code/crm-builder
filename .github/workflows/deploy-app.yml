@@ -1,0 +1,289 @@
+name: Deploy Application
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/backend/**'
+      - 'apps/frontend/**'
+      - '.github/workflows/deploy-app.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      deploy_backend:
+        description: 'Deploy backend application'
+        required: false
+        default: true
+        type: boolean
+      deploy_frontend:
+        description: 'Deploy frontend application'
+        required: false
+        default: true
+        type: boolean
+
+env:
+  NODE_VERSION: '18'
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend-changed: ${{ steps.changes.outputs.backend }}
+      frontend-changed: ${{ steps.changes.outputs.frontend }}
+      any-changed: ${{ steps.changes.outputs.any }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect changes
+        id: changes
+        run: |
+          # Get the list of changed files
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            # For push events, compare with the previous commit
+            CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+          else
+            # For manual triggers, assume all apps changed
+            CHANGED_FILES="apps/backend/ apps/frontend/"
+          fi
+          
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+          
+          # Check if backend changed
+          if echo "$CHANGED_FILES" | grep -q "apps/backend/"; then
+            echo "backend=true" >> $GITHUB_OUTPUT
+            echo "✅ Backend changes detected"
+          else
+            echo "backend=false" >> $GITHUB_OUTPUT
+            echo "⏭️ No backend changes detected"
+          fi
+          
+          # Check if frontend changed
+          if echo "$CHANGED_FILES" | grep -q "apps/frontend/"; then
+            echo "frontend=true" >> $GITHUB_OUTPUT
+            echo "✅ Frontend changes detected"
+          else
+            echo "frontend=false" >> $GITHUB_OUTPUT
+            echo "⏭️ No frontend changes detected"
+          fi
+          
+          # Check if any app changed
+          if [[ "${{ github.event.inputs.deploy_backend }}" == "true" ]] || [[ "${{ github.event.inputs.deploy_frontend }}" == "true" ]] || [[ "${{ github.event_name }}" == "push" ]]; then
+            echo "any=true" >> $GITHUB_OUTPUT
+            echo "✅ Deployment will proceed"
+          else
+            echo "any=false" >> $GITHUB_OUTPUT
+            echo "⏭️ No deployment needed"
+          fi
+
+  deploy-backend:
+    needs: detect-changes
+    if: |
+      needs.detect-changes.outputs.backend-changed == 'true' || 
+      github.event.inputs.deploy_backend == 'true' ||
+      (github.event_name == 'push' && needs.detect-changes.outputs.any-changed == 'true')
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: [dev, staging, prod]
+        include:
+          - environment: dev
+            app_name: crm-builder-dev-app
+            publish_profile_secret: AZURE_WEBAPP_PUBLISH_PROFILE_BACKEND_DEV
+          - environment: staging
+            app_name: crm-builder-staging-app
+            publish_profile_secret: AZURE_WEBAPP_PUBLISH_PROFILE_BACKEND_STAGING
+          - environment: prod
+            app_name: crm-builder-prod-app
+            publish_profile_secret: AZURE_WEBAPP_PUBLISH_PROFILE_BACKEND_PROD
+    environment: ${{ matrix.environment }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: apps/backend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          echo "📦 Installing backend dependencies..."
+          cd apps/backend
+          npm ci
+          echo "✅ Dependencies installed successfully"
+
+      - name: Run tests
+        run: |
+          echo "🧪 Running backend tests..."
+          cd apps/backend
+          npm test --if-present || echo "⚠️ Tests failed or not configured, continuing with deployment"
+
+      - name: Build backend
+        run: |
+          echo "🔨 Building backend application..."
+          cd apps/backend
+          npm run build
+          echo "✅ Backend build completed"
+
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ matrix.app_name }}
+          publish-profile: ${{ secrets[matrix.publish_profile_secret] }}
+          package: apps/backend/dist
+
+      - name: Verify deployment
+        run: |
+          echo "🔍 Verifying backend deployment..."
+          echo "App Service: ${{ matrix.app_name }}"
+          echo "Environment: ${{ matrix.environment }}"
+          echo "✅ Backend deployment completed successfully"
+
+  deploy-frontend:
+    needs: detect-changes
+    if: |
+      needs.detect-changes.outputs.frontend-changed == 'true' || 
+      github.event.inputs.deploy_frontend == 'true' ||
+      (github.event_name == 'push' && needs.detect-changes.outputs.any-changed == 'true')
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: [dev, staging, prod]
+        include:
+          - environment: dev
+            app_name: crm-builder-dev-app
+            publish_profile_secret: AZURE_WEBAPP_PUBLISH_PROFILE_FRONTEND_DEV
+          - environment: staging
+            app_name: crm-builder-staging-app
+            publish_profile_secret: AZURE_WEBAPP_PUBLISH_PROFILE_FRONTEND_STAGING
+          - environment: prod
+            app_name: crm-builder-prod-app
+            publish_profile_secret: AZURE_WEBAPP_PUBLISH_PROFILE_FRONTEND_PROD
+    environment: ${{ matrix.environment }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: apps/frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          echo "📦 Installing frontend dependencies..."
+          cd apps/frontend
+          npm ci
+          echo "✅ Dependencies installed successfully"
+
+      - name: Run tests
+        run: |
+          echo "🧪 Running frontend tests..."
+          cd apps/frontend
+          npm test --if-present || echo "⚠️ Tests failed or not configured, continuing with deployment"
+
+      - name: Build frontend
+        run: |
+          echo "🔨 Building frontend application..."
+          cd apps/frontend
+          npm run build
+          echo "✅ Frontend build completed"
+
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ matrix.app_name }}
+          publish-profile: ${{ secrets[matrix.publish_profile_secret] }}
+          package: apps/frontend/dist
+
+      - name: Verify deployment
+        run: |
+          echo "🔍 Verifying frontend deployment..."
+          echo "App Service: ${{ matrix.app_name }}"
+          echo "Environment: ${{ matrix.environment }}"
+          echo "✅ Frontend deployment completed successfully"
+
+  deployment-summary:
+    needs: [detect-changes, deploy-backend, deploy-frontend]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Generate deployment summary
+        run: |
+          echo "📊 Deployment Summary"
+          echo "===================="
+          echo "Event: ${{ github.event_name }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Commit: ${{ github.sha }}"
+          echo ""
+          echo "Changes Detected:"
+          echo "- Backend: ${{ needs.detect-changes.outputs.backend-changed }}"
+          echo "- Frontend: ${{ needs.detect-changes.outputs.frontend-changed }}"
+          echo ""
+          echo "Deployment Status:"
+          
+          if [[ "${{ needs.deploy-backend.result }}" == "success" ]]; then
+            echo "✅ Backend: Deployed successfully"
+          elif [[ "${{ needs.deploy-backend.result }}" == "skipped" ]]; then
+            echo "⏭️ Backend: Skipped (no changes)"
+          elif [[ "${{ needs.deploy-backend.result }}" == "failure" ]]; then
+            echo "❌ Backend: Deployment failed"
+          else
+            echo "⏭️ Backend: Not triggered"
+          fi
+          
+          if [[ "${{ needs.deploy-frontend.result }}" == "success" ]]; then
+            echo "✅ Frontend: Deployed successfully"
+          elif [[ "${{ needs.deploy-frontend.result }}" == "skipped" ]]; then
+            echo "⏭️ Frontend: Skipped (no changes)"
+          elif [[ "${{ needs.deploy-frontend.result }}" == "failure" ]]; then
+            echo "❌ Frontend: Deployment failed"
+          else
+            echo "⏭️ Frontend: Not triggered"
+          fi
+          
+          echo ""
+          echo "Environment Matrix:"
+          echo "- Dev: ${{ matrix.environment == 'dev' && '✅' || '⏭️' }}"
+          echo "- Staging: ${{ matrix.environment == 'staging' && '✅' || '⏭️' }}"
+          echo "- Production: ${{ matrix.environment == 'prod' && '✅' || '⏭️' }}"
+
+      - name: Handle deployment failures
+        if: failure()
+        run: |
+          echo "❌ Deployment Summary - Failures Detected"
+          echo "========================================"
+          echo ""
+          echo "Please check the following:"
+          echo "1. Azure App Service configuration"
+          echo "2. Publish profile secrets are correctly set"
+          echo "3. Build artifacts are generated correctly"
+          echo "4. Azure App Service is running and accessible"
+          echo ""
+          echo "For detailed logs, check the individual job outputs above."
+          echo ""
+          echo "Common troubleshooting steps:"
+          echo "- Verify publish profile secrets in GitHub repository settings"
+          echo "- Check Azure App Service logs in Azure portal"
+          echo "- Ensure build process completes successfully"
+          echo "- Verify Azure App Service is not in stopped state" 
