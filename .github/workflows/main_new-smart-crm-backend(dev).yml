@@ -33,12 +33,25 @@ jobs:
       - name: Prepare deployment package
         run: |
           cd apps/backend
-          # Copy package.json to dist for npm commands
-          cp package.json dist/
-          # Create deployment package
-          cd dist
+          # Create a clean deployment directory
+          mkdir -p deployment
+          # Copy dist contents to deployment root
+          cp -r dist/* deployment/
+          # Copy package.json to deployment root
+          cp package.json deployment/
+          # Install production dependencies
+          npm ci --only=production
+          # Copy node_modules to deployment
+          cp -r node_modules deployment/
+          # Create deployment package from deployment directory
+          cd deployment
           zip -r ../../../release.zip ./*
           cd ../..
+          
+          # Verify deployment package structure
+          echo "🔍 Verifying deployment package structure..."
+          unzip -l release.zip | head -20
+          echo "✅ Deployment package created successfully"
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
