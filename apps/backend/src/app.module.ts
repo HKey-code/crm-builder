@@ -22,11 +22,12 @@ import { PrismaService } from './prisma.service';
     RoleModule,
     AuthModule,
     Customer360Module,
-    GraphQLModule.forRoot<ApolloDriverConfig>({
-      driver: ApolloDriver,
-      autoSchemaFile: join(__dirname, 'schema.gql'), // ✅ Use __dirname here
-      playground: true,
-    }),
+    // Temporarily disable GraphQL to fix startup issues
+    // GraphQLModule.forRoot<ApolloDriverConfig>({
+    //   driver: ApolloDriver,
+    //   autoSchemaFile: join(__dirname, 'schema.gql'),
+    //   playground: true,
+    // }),
   ],
   controllers: [AppController],
   providers: [HealthcheckService, PrismaService],

@@ -5,6 +5,11 @@ import { HealthcheckService } from './healthcheck.service';
 export class AppController {
   constructor(private readonly healthcheckService: HealthcheckService) {}
 
+  @Get()
+  getHello() {
+    return { message: 'CRM Backend is running!' };
+  }
+
   @Get('healthcheck')
   async getHealthcheck() {
     try {
