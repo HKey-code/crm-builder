@@ -4,9 +4,10 @@
 name: Build and deploy Node.js app to Azure Web App - new-smart-crm-backend
 
 on:
-  push:
-    branches:
-      - main
+  # Disabled - using deploy-app.yml instead
+  # push:
+  #   branches:
+  #     - main
   workflow_dispatch:
 
 jobs:

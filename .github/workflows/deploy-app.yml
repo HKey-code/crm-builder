@@ -172,14 +172,16 @@ jobs:
           echo "📦 Preparing deployment package..."
           cd apps/backend
           
-          # Copy package.json to dist folder for npm commands
-          cp package.json dist/
-          
-          # Create a simple startup script
-          echo '#!/bin/bash' > dist/start.sh
-          echo 'cd /home/site/wwwroot' >> dist/start.sh
-          echo 'npm run start:prod' >> dist/start.sh
-          chmod +x dist/start.sh
+          # Create a clean deployment directory
+          mkdir -p deployment
+          # Copy dist contents to deployment root
+          cp -r dist/* deployment/
+          # Copy package.json to deployment root
+          cp package.json deployment/
+          # Install production dependencies
+          npm ci --only=production
+          # Copy node_modules to deployment
+          cp -r node_modules deployment/
           
           echo "✅ Deployment package prepared"
 
@@ -212,7 +214,7 @@ jobs:
         with:
           app-name: ${{ matrix.app_name }}
           publish-profile: ${{ secrets[matrix.publish_profile_secret] }}
-          package: apps/backend/dist
+          package: apps/backend/deployment
           startup-command: 'npm run start:prod'
 
       - name: Configure Azure App Service
