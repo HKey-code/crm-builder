@@ -161,12 +161,44 @@ jobs:
             exit 1
           fi
           
-          # Package the full backend project root (excluding node_modules)
-          zip -r ../../release.zip . -x "node_modules/*" ".git/*" "*.log"
+          # Verify package.json exists
+          if [ ! -f "package.json" ]; then
+            echo "❌ ERROR: package.json not found!"
+            exit 1
+          fi
+          
+          # Package the full backend project root (excluding node_modules, .git, logs)
+          echo "📦 Creating deployment package..."
+          zip -r ../../release.zip . -x "node_modules/*" ".git/*" "*.log" ".DS_Store" "coverage/*" "test-results/*"
           
           # Verify deployment package contents
           echo "🔍 Verifying deployment package contents..."
-          unzip -l release.zip | head -20
+          echo "📋 Package contents:"
+          unzip -l release.zip | head -30
+          
+          # Verify critical files are in the zip
+          echo "🔍 Verifying critical files in package..."
+          if unzip -l release.zip | grep -q "package.json"; then
+            echo "✅ package.json found in zip"
+          else
+            echo "❌ ERROR: package.json missing from zip!"
+            exit 1
+          fi
+          
+          if unzip -l release.zip | grep -q "dist/main.js"; then
+            echo "✅ dist/main.js found in zip"
+          else
+            echo "❌ ERROR: dist/main.js missing from zip!"
+            exit 1
+          fi
+          
+          if unzip -l release.zip | grep -q "web.config"; then
+            echo "✅ web.config found in zip"
+          else
+            echo "❌ ERROR: web.config missing from zip!"
+            exit 1
+          fi
+          
           echo "✅ Deployment package created successfully"
 
       - name: Test production build
