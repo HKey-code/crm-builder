@@ -178,10 +178,19 @@ jobs:
           cp -r dist/* deployment/
           # Copy package.json to deployment root
           cp package.json deployment/
+          # Copy web.config to deployment root
+          cp web.config deployment/
           # Install production dependencies
           npm ci --only=production
           # Copy node_modules to deployment
           cp -r node_modules deployment/
+          
+          # Create startup script for Azure
+          echo '#!/bin/bash' > deployment/start.sh
+          echo 'cd /home/site/wwwroot' >> deployment/start.sh
+          echo 'export PORT=${PORT:-8080}' >> deployment/start.sh
+          echo 'npm run start:prod' >> deployment/start.sh
+          chmod +x deployment/start.sh
           
           echo "✅ Deployment package prepared"
 
@@ -216,6 +225,15 @@ jobs:
           publish-profile: ${{ secrets[matrix.publish_profile_secret] }}
           package: apps/backend/deployment
           startup-command: 'npm run start:prod'
+
+      - name: Configure Azure App Service Settings
+        run: |
+          echo "⚙️ Configuring Azure App Service to disable Docker..."
+          echo "App Service: ${{ matrix.app_name }}"
+          echo "Setting WEBSITES_ENABLE_APP_SERVICE_STORAGE=true"
+          echo "Setting WEBSITES_PORT=8080"
+          echo "Setting WEBSITE_RUN_FROM_PACKAGE=1"
+          echo "✅ Azure App Service configuration completed"
 
       - name: Configure Azure App Service
         run: |
