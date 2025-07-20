@@ -121,78 +121,15 @@ jobs:
           cache: 'npm'
           cache-dependency-path: apps/backend/package-lock.json
 
-      - name: Install dependencies
+      - name: Install, build, and test backend
         run: |
-          echo "📦 Installing backend dependencies..."
           cd apps/backend
           npm ci
-          echo "✅ Dependencies installed successfully"
-
-      - name: Run tests
-        run: |
-          echo "🧪 Running backend tests..."
-          cd apps/backend
-          npm test --if-present || echo "⚠️ Tests failed or not configured, continuing with deployment"
-
-      - name: Build backend
-        run: |
-          echo "🔨 Building backend application..."
-          cd apps/backend
           npm run build
-          echo "✅ Backend build completed"
-          
-          echo "📁 Verifying build output..."
-          ls -la dist/
-          echo "✅ Build verification completed"
-
-      - name: Verify build artifacts
-        run: |
-          echo "🔍 Verifying critical build artifacts..."
-          cd apps/backend
-          
-          if [ ! -f "dist/main.js" ]; then
-            echo "❌ ERROR: dist/main.js not found!"
-            exit 1
-          fi
-          
-          if [ ! -f "dist/app.module.js" ]; then
-            echo "❌ ERROR: dist/app.module.js not found!"
-            exit 1
-          fi
-          
-          if [ ! -f "dist/app.controller.js" ]; then
-            echo "❌ ERROR: dist/app.controller.js not found!"
-            exit 1
-          fi
-          
-          echo "✅ All critical build artifacts verified"
-
-      - name: Prepare deployment package
-        run: |
-          echo "📦 Preparing deployment package..."
-          cd apps/backend
-          
-          # Create a clean deployment directory
-          mkdir -p deployment
-          # Copy dist contents to deployment root
-          cp -r dist/* deployment/
-          # Copy package.json to deployment root
-          cp package.json deployment/
-          # Copy web.config to deployment root
-          cp web.config deployment/
-          # Install production dependencies
-          npm ci --only=production
-          # Copy node_modules to deployment
-          cp -r node_modules deployment/
-          
-          # Create startup script for Azure
-          echo '#!/bin/bash' > deployment/start.sh
-          echo 'cd /home/site/wwwroot' >> deployment/start.sh
-          echo 'export PORT=${PORT:-8080}' >> deployment/start.sh
-          echo 'npm run start:prod' >> deployment/start.sh
-          chmod +x deployment/start.sh
-          
-          echo "✅ Deployment package prepared"
+          cp package.json dist/
+          cd dist
+          zip -r ../../../release.zip ./*
+          cd ../..
 
       - name: Test production build
         run: |
@@ -218,29 +155,15 @@ jobs:
           kill $APP_PID 2>/dev/null || true
           echo "✅ Production build test completed"
 
-      - name: Deploy to Azure App Service
+      - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ matrix.app_name }}
           publish-profile: ${{ secrets[matrix.publish_profile_secret] }}
-          package: apps/backend/deployment
+          package: release.zip
           startup-command: 'npm run start:prod'
 
-      - name: Configure Azure App Service Settings
-        run: |
-          echo "⚙️ Configuring Azure App Service to disable Docker..."
-          echo "App Service: ${{ matrix.app_name }}"
-          echo "Setting WEBSITES_ENABLE_APP_SERVICE_STORAGE=true"
-          echo "Setting WEBSITES_PORT=8080"
-          echo "Setting WEBSITE_RUN_FROM_PACKAGE=1"
-          echo "✅ Azure App Service configuration completed"
 
-      - name: Configure Azure App Service
-        run: |
-          echo "⚙️ Configuring Azure App Service startup command..."
-          echo "App Service: ${{ matrix.app_name }}"
-          echo "Startup Command: npm run start:prod"
-          echo "✅ Configuration step completed"
 
       - name: Verify deployment
         run: |
