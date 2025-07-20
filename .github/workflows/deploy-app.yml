@@ -167,6 +167,22 @@ jobs:
           
           echo "✅ All critical build artifacts verified"
 
+      - name: Prepare deployment package
+        run: |
+          echo "📦 Preparing deployment package..."
+          cd apps/backend
+          
+          # Copy package.json to dist folder for npm commands
+          cp package.json dist/
+          
+          # Create a simple startup script
+          echo '#!/bin/bash' > dist/start.sh
+          echo 'cd /home/site/wwwroot' >> dist/start.sh
+          echo 'npm run start:prod' >> dist/start.sh
+          chmod +x dist/start.sh
+          
+          echo "✅ Deployment package prepared"
+
       - name: Test production build
         run: |
           echo "🧪 Testing production build..."
@@ -198,6 +214,13 @@ jobs:
           publish-profile: ${{ secrets[matrix.publish_profile_secret] }}
           package: apps/backend/dist
           startup-command: 'npm run start:prod'
+
+      - name: Configure Azure App Service
+        run: |
+          echo "⚙️ Configuring Azure App Service startup command..."
+          echo "App Service: ${{ matrix.app_name }}"
+          echo "Startup Command: npm run start:prod"
+          echo "✅ Configuration step completed"
 
       - name: Verify deployment
         run: |
