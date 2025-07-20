@@ -7,9 +7,13 @@ import { join } from 'path';
 config({ path: join(__dirname, '../../../.env') });
 
 async function bootstrap() {
+  console.log('Nest app booting...');
   const app = await NestFactory.create(AppModule);
-  await app.listen(3000);
-  console.log(`🚀 Application is running on: http://localhost:3000`);
+  
+  const port = process.env.PORT || 3000;
+  await app.listen(port);
+  console.log(`🚀 Application is running on port: ${port}`);
+  console.log(`🚀 Healthcheck available at: /health and /healthcheck`);
 }
 bootstrap();
 // Placeholder for main.ts

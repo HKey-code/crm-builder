@@ -1,0 +1,42 @@
+[
+  {
+    "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+    "slotSetting": false,
+    "value": "InstrumentationKey=29d7176a-0f23-4c25-97ed-5827aceb426f;IngestionEndpoint=https://centralus-2.in.applicationinsights.azure.com/;LiveEndpoint=https://centralus.livediagnostics.monitor.azure.com/;ApplicationId=60a01575-9fa3-4af2-ba35-277ddbce1268"
+  },
+  {
+    "name": "ApplicationInsightsAgent_EXTENSION_VERSION",
+    "slotSetting": false,
+    "value": "~3"
+  },
+  {
+    "name": "XDT_MicrosoftApplicationInsights_Mode",
+    "slotSetting": false,
+    "value": "default"
+  },
+  {
+    "name": "AZURE_CLIENT_ID",
+    "slotSetting": false,
+    "value": "@Microsoft.KeyVault(SecretUri=https://crm-secrets-dev.vault.azure.net/secrets/azure-client-id/)"
+  },
+  {
+    "name": "AZURE_CLIENT_SECRET",
+    "slotSetting": false,
+    "value": "@Microsoft.KeyVault(SecretUri=https://crm-secrets-dev.vault.azure.net/secrets/azure-client-secret/)"
+  },
+  {
+    "name": "AZURE_TENANT_ID",
+    "slotSetting": false,
+    "value": "@Microsoft.KeyVault(SecretUri=https://crm-secrets-dev.vault.azure.net/secrets/azure-tenant-id/)"
+  },
+  {
+    "name": "DATABASE_URL",
+    "slotSetting": false,
+    "value": "@Microsoft.KeyVault(SecretUri=https://crm-secrets-dev.vault.azure.net/secrets/database-url/)"
+  },
+  {
+    "name": "JWT_SECRET",
+    "slotSetting": false,
+    "value": "@Microsoft.KeyVault(SecretUri=https://crm-secrets-dev.vault.azure.net/secrets/jwt-secret/)"
+  }
+]
