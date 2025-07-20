@@ -127,9 +127,55 @@ jobs:
           npm ci
           npm run build
           cp package.json dist/
+          
+          # Create web.config for Azure App Service
+          cat > dist/web.config << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <system.webServer>
+              <handlers>
+                <add name="iisnode" path="main.js" verb="*" modules="iisnode"/>
+              </handlers>
+              <rewrite>
+                <rules>
+                  <rule name="NodeInspector" patternSyntax="ECMAScript" stopProcessing="true">
+                    <match url="^main.js\/debug[\/]?" />
+                  </rule>
+                  <rule name="StaticContent">
+                    <action type="Rewrite" url="public{REQUEST_URI}"/>
+                  </rule>
+                  <rule name="DynamicContent">
+                    <conditions>
+                      <add input="{REQUEST_FILENAME}" matchType="IsFile" negate="True"/>
+                    </conditions>
+                    <action type="Rewrite" url="main.js"/>
+                  </rule>
+                </rules>
+              </rewrite>
+            </system.webServer>
+          </configuration>
+          EOF
+          
+          # Install production dependencies in dist/
+          cd dist
+          npm ci --only=production
+          cd ..
+          
+          # Verify main.js exists
+          if [ ! -f "dist/main.js" ]; then
+            echo "❌ ERROR: dist/main.js not found!"
+            exit 1
+          fi
+          
+          # Package only dist/ contents
           cd dist
           zip -r ../../../release.zip ./*
           cd ../..
+          
+          # Verify deployment package contents
+          echo "🔍 Verifying deployment package contents..."
+          unzip -l release.zip | head -20
+          echo "✅ Deployment package created successfully"
 
       - name: Test production build
         run: |
@@ -161,7 +207,6 @@ jobs:
           app-name: ${{ matrix.app_name }}
           publish-profile: ${{ secrets[matrix.publish_profile_secret] }}
           package: release.zip
-          startup-command: 'npm run start:prod'
 
 
 
