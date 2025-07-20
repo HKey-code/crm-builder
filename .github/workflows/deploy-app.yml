@@ -169,7 +169,7 @@ jobs:
           
           # Package the full backend project root (excluding node_modules, .git, logs)
           echo "📦 Creating deployment package..."
-          zip -r ../../release.zip . -x "node_modules/*" ".git/*" "*.log" ".DS_Store" "coverage/*" "test-results/*"
+          zip -r ../../release.zip . -x "node_modules/*" "node_modules.tar.gz" ".git/*" "*.log" ".DS_Store" "coverage/*" "test-results/*"
           
           # Verify deployment package contents
           echo "🔍 Verifying deployment package contents..."
