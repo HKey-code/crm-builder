@@ -140,6 +140,56 @@ jobs:
           cd apps/backend
           npm run build
           echo "✅ Backend build completed"
+          
+          echo "📁 Verifying build output..."
+          ls -la dist/
+          echo "✅ Build verification completed"
+
+      - name: Verify build artifacts
+        run: |
+          echo "🔍 Verifying critical build artifacts..."
+          cd apps/backend
+          
+          if [ ! -f "dist/main.js" ]; then
+            echo "❌ ERROR: dist/main.js not found!"
+            exit 1
+          fi
+          
+          if [ ! -f "dist/app.module.js" ]; then
+            echo "❌ ERROR: dist/app.module.js not found!"
+            exit 1
+          fi
+          
+          if [ ! -f "dist/app.controller.js" ]; then
+            echo "❌ ERROR: dist/app.controller.js not found!"
+            exit 1
+          fi
+          
+          echo "✅ All critical build artifacts verified"
+
+      - name: Test production build
+        run: |
+          echo "🧪 Testing production build..."
+          cd apps/backend
+          
+          # Start the app in background
+          timeout 10s npm run start:prod &
+          APP_PID=$!
+          
+          # Wait for app to start
+          sleep 5
+          
+          # Test healthcheck endpoint
+          if curl -f http://localhost:3000/health > /dev/null 2>&1; then
+            echo "✅ Healthcheck endpoint working"
+          else
+            echo "❌ Healthcheck endpoint failed"
+            exit 1
+          fi
+          
+          # Kill the app
+          kill $APP_PID 2>/dev/null || true
+          echo "✅ Production build test completed"
 
       - name: Deploy to Azure App Service
         uses: azure/webapps-deploy@v3
@@ -147,6 +197,7 @@ jobs:
           app-name: ${{ matrix.app_name }}
           publish-profile: ${{ secrets[matrix.publish_profile_secret] }}
           package: apps/backend/dist
+          startup-command: 'npm run start:prod'
 
       - name: Verify deployment
         run: |
