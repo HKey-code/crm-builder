@@ -32,6 +32,8 @@ describe('RolesGuard', () => {
 
       const mockContext = {
         getType: () => 'http',
+        getHandler: () => ({}),
+        getClass: () => ({}),
         switchToHttp: () => ({
           getRequest: () => ({}),
         }),
@@ -46,6 +48,8 @@ describe('RolesGuard', () => {
 
       const mockContext = {
         getType: () => 'http',
+        getHandler: () => ({}),
+        getClass: () => ({}),
         switchToHttp: () => ({
           getRequest: () => ({ user: null }),
         }),
@@ -59,6 +63,8 @@ describe('RolesGuard', () => {
 
       const mockContext = {
         getType: () => 'http',
+        getHandler: () => ({}),
+        getClass: () => ({}),
         switchToHttp: () => ({
           getRequest: () => ({
             user: { id: 'user123' },
@@ -76,6 +82,8 @@ describe('RolesGuard', () => {
 
       const mockContext = {
         getType: () => 'graphql',
+        getHandler: () => ({}),
+        getClass: () => ({}),
       } as ExecutionContext;
 
       jest.spyOn(GqlExecutionContext, 'create').mockReturnValue({
@@ -96,6 +104,8 @@ describe('RolesGuard', () => {
 
       const mockContext = {
         getType: () => 'http',
+        getHandler: () => ({}),
+        getClass: () => ({}),
         switchToHttp: () => ({
           getRequest: () => ({
             user: { id: 'user123' },
@@ -112,6 +122,8 @@ describe('RolesGuard', () => {
 
       const mockContext = {
         getType: () => 'http',
+        getHandler: () => ({}),
+        getClass: () => ({}),
         switchToHttp: () => ({
           getRequest: () => ({
             user: { id: 'user123' },
