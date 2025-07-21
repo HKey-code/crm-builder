@@ -1,6 +1,7 @@
 {
   "name": "backend",
   "version": "1.0.0",
+  "_comment": "Test deployment trigger - Mon Jul 21 01:45:00 CDT 2025",
   "scripts": {
     "start": "node dist/main.js",
     "start:prod": "node dist/main.js",
