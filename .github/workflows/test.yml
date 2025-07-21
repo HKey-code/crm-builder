@@ -3,11 +3,20 @@ name: Run Tests
 on:
   push:
     branches:
-      - '**'
+      - main
+      - develop
+    paths:
+      - 'apps/backend/**'
+      - 'apps/frontend/**'
+      - '.github/workflows/test.yml'
   pull_request:
     branches:
       - main
       - develop
+    paths:
+      - 'apps/backend/**'
+      - 'apps/frontend/**'
+      - '.github/workflows/test.yml'
   workflow_dispatch:
 
 env:
