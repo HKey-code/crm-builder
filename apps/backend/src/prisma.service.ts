@@ -9,6 +9,12 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     // Load .env from root directory
     config({ path: join(__dirname, '../../../.env') });
     
+    // Check if DATABASE_URL is available
+    if (!process.env.DATABASE_URL) {
+      console.warn('⚠️ DATABASE_URL not found in environment variables');
+      throw new Error('DATABASE_URL environment variable is required');
+    }
+    
     super({
       datasources: {
         db: {
