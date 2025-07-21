@@ -1,0 +1,2 @@
+Deployment test file - created at $(date)
+This file should be deployed to Azure to verify the deployment process is working. 
