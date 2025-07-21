@@ -123,15 +123,26 @@ jobs:
 
       - name: Install, build, and test backend
         run: |
+          echo "🔨 Setting up Node.js environment..."
+          node --version
+          npm --version
+          
+          echo "📦 Installing backend dependencies..."
           cd apps/backend
           npm ci
+          
+          echo "🔨 Building backend application..."
           npm run build
           
           # Verify main.js exists
           if [ ! -f "dist/main.js" ]; then
             echo "❌ ERROR: dist/main.js not found!"
+            ls -la dist/ || echo "dist/ directory not found!"
             exit 1
           fi
+          
+          echo "✅ dist/main.js found"
+          ls -la dist/
           
           # Verify package.json exists
           if [ ! -f "package.json" ]; then
@@ -147,19 +158,27 @@ jobs:
           # Verify dist/ exists in the monorepo structure
           if [ ! -f "apps/backend/dist/main.js" ]; then
             echo "❌ ERROR: apps/backend/dist/main.js not found in monorepo structure!"
+            echo "Current directory: $(pwd)"
+            ls -la apps/backend/ || echo "apps/backend/ not found!"
             exit 1
           fi
           
           echo "✅ Build verified in monorepo structure"
+          echo "📋 Monorepo structure verification:"
+          ls -la apps/backend/
+          ls -la apps/backend/dist/
+          
+          # Clean any existing release.zip
+          rm -f release.zip
           
           # Package the full monorepo structure (excluding node_modules, .git, logs)
           echo "📦 Creating deployment package..."
-          zip -r release.zip . -x "node_modules/*" "node_modules.tar.gz" ".git/*" "*.log" ".DS_Store" "coverage/*" "test-results/*"
+          zip -r release.zip . -x "node_modules/*" "node_modules.tar.gz" ".git/*" "*.log" ".DS_Store" "coverage/*" "test-results/*" ".github/*"
           
           # Verify deployment package contents
           echo "🔍 Verifying deployment package contents..."
-          echo "📋 Package contents:"
-          unzip -l release.zip | head -30
+          echo "📋 Package contents (first 50 entries):"
+          unzip -l release.zip | head -50
           
           # Verify critical files are in the zip
           echo "🔍 Verifying critical files in package..."
@@ -181,10 +200,35 @@ jobs:
             echo "✅ apps/backend/dist/main.js found in zip"
           else
             echo "❌ ERROR: apps/backend/dist/main.js missing from zip!"
+            echo "🔍 Checking what's in apps/backend/dist/ in the zip:"
+            unzip -l release.zip | grep "apps/backend/dist/"
             exit 1
           fi
           
           echo "✅ Deployment package created successfully - Ready for Azure deployment!"
+          echo "📊 Package size: $(du -h release.zip | cut -f1)"
+          
+          # Additional verification: Extract and check critical files
+          echo "🔍 Additional verification: Extracting critical files..."
+          mkdir -p temp-verify
+          cd temp-verify
+          unzip -q ../release.zip
+          
+          echo "📋 Verifying extracted files:"
+          ls -la
+          ls -la apps/backend/ || echo "apps/backend/ not found in extracted zip!"
+          ls -la apps/backend/dist/ || echo "apps/backend/dist/ not found in extracted zip!"
+          
+          if [ -f "apps/backend/dist/main.js" ]; then
+            echo "✅ apps/backend/dist/main.js verified in extracted zip"
+            echo "📄 File size: $(wc -c < apps/backend/dist/main.js) bytes"
+          else
+            echo "❌ ERROR: apps/backend/dist/main.js not found in extracted zip!"
+            exit 1
+          fi
+          
+          cd ..
+          rm -rf temp-verify
 
       - name: Test production build
         run: |
