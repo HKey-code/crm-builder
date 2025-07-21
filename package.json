@@ -1,27 +1,13 @@
 {
-  "name": "crm-builder",
+  "name": "crm-builder-monorepo",
+  "version": "1.0.0",
+  "description": "CRM Builder Monorepo - Backend and Frontend Applications",
+  "scripts": {
+    "start": "echo 'This is a monorepo - use apps/backend or apps/frontend' && exit 1"
+  },
   "private": true,
-  
   "workspaces": [
     "apps/*",
     "libs/*"
-  ],
-  "dependencies": {
-    "@apollo/server": "^4.12.2",
-    "@nestjs/apollo": "^13.1.0",
-    "@nestjs/cli": "^11.0.7",
-    "@nestjs/common": "^11.1.3",
-    "@nestjs/core": "^11.1.3",
-    "@nestjs/graphql": "^13.1.0",
-    "@nestjs/platform-express": "^11.1.3",
-    "@nestjs/testing": "^11.1.3",
-    "class-transformer": "^0.5.1",
-    "class-validator": "^0.14.2",
-    "graphql": "^16.11.0",
-    "rxjs": "^7.8.1",
-    "typescript": "^5.4.5"
-  },
-  "prisma": {
-    "schema": "libs/schema-engine/prisma/schema.prisma"
-  }
+  ]
 }

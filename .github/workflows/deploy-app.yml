@@ -209,7 +209,7 @@ jobs:
           app-name: ${{ matrix.app_name }}
           publish-profile: ${{ secrets[matrix.publish_profile_secret] }}
           package: release.zip
-          startup-command: 'cd apps/backend && npm ci --only=production && npm run start:prod'
+          startup-command: 'cd apps/backend && npm ci --only=production && npm start'
 
 
 
