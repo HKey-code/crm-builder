@@ -17,3 +17,4 @@ async function bootstrap() {
 }
 bootstrap();
 // Placeholder for main.ts
+// Deployment trigger
