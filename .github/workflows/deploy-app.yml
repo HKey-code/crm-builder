@@ -138,6 +138,7 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          NODE_ENV: production
         run: |
           echo "🔨 Setting up Node.js environment..."
           node --version
@@ -151,14 +152,14 @@ jobs:
           test -f libs/schema-engine/prisma/schema.prisma || (echo "❌ Prisma schema not found!" && exit 1)
           echo "✅ Prisma schema found"
           
-          # Generate Prisma client from root directory with environment variables
+          # Generate Prisma client from root directory
           echo "🔧 Generating Prisma client..."
-          DATABASE_URL="$DATABASE_URL" npx prisma generate --schema=libs/schema-engine/prisma/schema.prisma
+          npx prisma generate --schema=libs/schema-engine/prisma/schema.prisma
           
           echo "🔨 Building backend application..."
           cd apps/backend
           
-          DATABASE_URL="$DATABASE_URL" JWT_SECRET="$JWT_SECRET" npm run build
+          npm run build
           
           # Verify main.js exists
           if [ ! -f "dist/main.js" ]; then
@@ -244,11 +245,12 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          NODE_ENV: production
         run: |
           echo "🧪 Testing production build..."
           
-          # Start the app in background with explicit environment variables
-          timeout 10s DATABASE_URL="$DATABASE_URL" JWT_SECRET="$JWT_SECRET" node dist/main.js &
+          # Start the app in background
+          timeout 10s node dist/main.js &
           APP_PID=$!
           
           # Wait for app to start
