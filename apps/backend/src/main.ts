@@ -3,8 +3,10 @@ import { AppModule } from './app.module';
 import { config } from 'dotenv';
 import { join } from 'path';
 
-// Load .env from root directory
-config({ path: join(__dirname, '../../../.env') });
+// Load .env from root directory only in development
+if (process.env.NODE_ENV !== 'production') {
+  config({ path: join(__dirname, '../../../.env') });
+}
 
 async function bootstrap() {
   console.log('Nest app booting...');

@@ -30,11 +30,6 @@ on:
         default: true
         type: boolean
 
-env:
-  NODE_VERSION: '18'
-  DATABASE_URL: ${{ secrets.DATABASE_URL }}
-  JWT_SECRET: ${{ secrets.JWT_SECRET }}
-
 jobs:
   detect-changes:
     runs-on: ubuntu-latest
@@ -111,6 +106,11 @@ jobs:
             app_name: crm-builder-prod-app
             publish_profile_secret: AZURE_WEBAPP_PUBLISH_PROFILE_BACKEND_PROD
     environment: ${{ matrix.environment }}
+    env:
+      NODE_VERSION: '18'
+      NODE_ENV: 'production'
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
     
     steps:
       - name: Checkout code
