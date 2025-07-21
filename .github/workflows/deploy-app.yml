@@ -139,9 +139,10 @@ jobs:
             exit 1
           fi
           
-          # Package the backend directory structure (excluding node_modules, .git, logs)
+          # Package the full monorepo structure (excluding node_modules, .git, logs)
           echo "📦 Creating deployment package..."
-          zip -r ../../release.zip . -x "node_modules/*" "node_modules.tar.gz" ".git/*" "*.log" ".DS_Store" "coverage/*" "test-results/*"
+          cd ../..
+          zip -r release.zip . -x "node_modules/*" "node_modules.tar.gz" ".git/*" "*.log" ".DS_Store" "coverage/*" "test-results/*"
           
           # Verify deployment package contents
           echo "🔍 Verifying deployment package contents..."
@@ -150,17 +151,17 @@ jobs:
           
           # Verify critical files are in the zip
           echo "🔍 Verifying critical files in package..."
-          if unzip -l release.zip | grep -q "package.json"; then
-            echo "✅ package.json found in zip"
+          if unzip -l release.zip | grep -q "apps/backend/package.json"; then
+            echo "✅ apps/backend/package.json found in zip"
           else
-            echo "❌ ERROR: package.json missing from zip!"
+            echo "❌ ERROR: apps/backend/package.json missing from zip!"
             exit 1
           fi
           
-          if unzip -l release.zip | grep -q "dist/main.js"; then
-            echo "✅ dist/main.js found in zip"
+          if unzip -l release.zip | grep -q "apps/backend/dist/main.js"; then
+            echo "✅ apps/backend/dist/main.js found in zip"
           else
-            echo "❌ ERROR: dist/main.js missing from zip!"
+            echo "❌ ERROR: apps/backend/dist/main.js missing from zip!"
             exit 1
           fi
           
@@ -196,7 +197,7 @@ jobs:
           app-name: ${{ matrix.app_name }}
           publish-profile: ${{ secrets[matrix.publish_profile_secret] }}
           package: release.zip
-          startup-command: 'cd apps/backend && npm ci --only=production && npm run start:prod'
+          startup-command: 'cd apps/backend && npm ci --only=production && npm run build && npm run start:prod'
 
 
 
