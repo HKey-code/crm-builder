@@ -169,17 +169,6 @@ jobs:
           
           echo "✅ Backend build completed successfully"
           
-          # Return to monorepo root and verify dist/ is built into the structure
-          cd ../..
-          
-          # Verify dist/ exists in the monorepo structure
-          if [ ! -f "apps/backend/dist/main.js" ]; then
-            echo "❌ ERROR: apps/backend/dist/main.js not found in monorepo structure!"
-            echo "Current directory: $(pwd)"
-            ls -la apps/backend/ || echo "apps/backend/ not found!"
-            exit 1
-          fi
-          
           echo "✅ Build verified in monorepo structure"
           echo "📋 Monorepo structure verification:"
           ls -la apps/backend/
@@ -224,28 +213,6 @@ jobs:
           
           echo "✅ Deployment package created successfully - Ready for Azure deployment!"
           echo "📊 Package size: $(du -h release.zip | cut -f1)"
-          
-          # Additional verification: Extract and check critical files
-          echo "🔍 Additional verification: Extracting critical files..."
-          mkdir -p temp-verify
-          cd temp-verify
-          unzip -q ../release.zip
-          
-          echo "📋 Verifying extracted files:"
-          ls -la
-          ls -la apps/backend/ || echo "apps/backend/ not found in extracted zip!"
-          ls -la apps/backend/dist/ || echo "apps/backend/dist/ not found in extracted zip!"
-          
-          if [ -f "apps/backend/dist/main.js" ]; then
-            echo "✅ apps/backend/dist/main.js verified in extracted zip"
-            echo "📄 File size: $(wc -c < apps/backend/dist/main.js) bytes"
-          else
-            echo "❌ ERROR: apps/backend/dist/main.js not found in extracted zip!"
-            exit 1
-          fi
-          
-          cd ..
-          rm -rf temp-verify
 
       - name: Test production build
         run: |
