@@ -77,6 +77,15 @@ describe('Customer360Service', () => {
         name: 'sales_manager',
       },
     },
+    {
+      id: 'assignment-2',
+      userId: 'user-1',
+      tenantId: 'tenant-1',
+      role: {
+        id: 'role-2',
+        name: 'service_manager',
+      },
+    },
   ];
 
   const mockPrismaService = {
