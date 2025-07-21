@@ -151,7 +151,7 @@ jobs:
           
           # Generate Prisma client with environment variables
           echo "🔧 Generating Prisma client..."
-          npx prisma generate
+          npx prisma generate --schema=../../libs/schema-engine/prisma/schema.prisma
           
           npm run build
           
