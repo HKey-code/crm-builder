@@ -31,7 +31,9 @@ on:
         type: boolean
 
 env:
-  NODE_VERSION: '22'
+  NODE_VERSION: '18'
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  JWT_SECRET: ${{ secrets.JWT_SECRET }}
 
 jobs:
   detect-changes:
@@ -123,9 +125,6 @@ jobs:
           # cache-dependency-path: '**/package-lock.json'
 
       - name: Install, build, and test backend
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: |
           echo "🔨 Setting up Node.js environment..."
           node --version
@@ -218,9 +217,6 @@ jobs:
           echo "📊 Package size: $(du -h release.zip | cut -f1)"
 
       - name: Test production build
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: |
           echo "🧪 Testing production build..."
           cd apps/backend
