@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 env:
-  NODE_VERSION: '18'
+  NODE_VERSION: '22'
 
 jobs:
   test-backend:
@@ -26,13 +26,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: apps/backend/package-lock.json
+          # Temporarily disable caching to avoid workspace path resolution issues
+          # cache: 'npm'
+          # cache-dependency-path: apps/backend/package-lock.json
 
       - name: Install backend dependencies
         run: |
-          echo "📦 Installing backend dependencies..."
-          cd apps/backend
+          echo "📦 Installing monorepo dependencies from root..."
           npm ci
           echo "✅ Backend dependencies installed"
 
@@ -104,13 +104,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: apps/frontend/package-lock.json
+          # Temporarily disable caching to avoid workspace path resolution issues
+          # cache: 'npm'
+          # cache-dependency-path: apps/frontend/package-lock.json
 
       - name: Install frontend dependencies
         run: |
-          echo "📦 Installing frontend dependencies..."
-          cd apps/frontend
+          echo "📦 Installing monorepo dependencies from root..."
           npm ci
           echo "✅ Frontend dependencies installed"
 
