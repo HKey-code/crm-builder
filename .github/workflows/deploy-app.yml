@@ -146,12 +146,17 @@ jobs:
           echo "📦 Installing monorepo dependencies from root..."
           npm ci
           
+          # Validate Prisma schema exists
+          echo "🔍 Validating Prisma schema file..."
+          test -f libs/schema-engine/prisma/schema.prisma || (echo "❌ Prisma schema not found!" && exit 1)
+          echo "✅ Prisma schema found"
+          
+          # Generate Prisma client from root directory
+          echo "🔧 Generating Prisma client..."
+          npx prisma generate --schema=libs/schema-engine/prisma/schema.prisma
+          
           echo "🔨 Building backend application..."
           cd apps/backend
-          
-          # Generate Prisma client with environment variables
-          echo "🔧 Generating Prisma client..."
-          npx prisma generate --schema=../../libs/schema-engine/prisma/schema.prisma
           
           npm run build
           
