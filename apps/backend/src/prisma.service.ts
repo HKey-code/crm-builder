@@ -6,8 +6,8 @@ import { join } from 'path';
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   constructor() {
-    // Load .env from root directory
-    config({ path: join(__dirname, '../../../.env') });
+    // Load .env from root directory, but don't override existing env vars
+    config({ path: join(__dirname, '../../../.env'), override: false });
     
     // Check if DATABASE_URL is available
     if (!process.env.DATABASE_URL) {

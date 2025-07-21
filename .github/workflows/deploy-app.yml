@@ -124,6 +124,16 @@ jobs:
           # cache: 'npm'
           # cache-dependency-path: '**/package-lock.json'
 
+      - name: Debug environment variables
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+        run: |
+          echo "🔍 Debugging environment variables..."
+          echo "DATABASE_URL is ${DATABASE_URL:+SET}"
+          echo "JWT_SECRET is ${JWT_SECRET:+SET}"
+          echo "✅ Environment variables check completed"
+
       - name: Install, build, and test backend
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -138,6 +148,11 @@ jobs:
           
           echo "🔨 Building backend application..."
           cd apps/backend
+          
+          # Generate Prisma client with environment variables
+          echo "🔧 Generating Prisma client..."
+          npx prisma generate
+          
           npm run build
           
           # Verify main.js exists
