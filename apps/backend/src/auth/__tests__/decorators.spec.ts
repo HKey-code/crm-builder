@@ -16,7 +16,9 @@ describe('Decorators', () => {
         }),
       } as ExecutionContext;
 
-      const result = CurrentUser(undefined, mockContext);
+      // Call the decorator function directly
+      const decoratorFn = CurrentUser(undefined, mockContext);
+      const result = decoratorFn(mockContext, undefined, 0);
       expect(result).toEqual(mockUser);
     });
 
@@ -32,7 +34,9 @@ describe('Decorators', () => {
         getContext: () => ({ req: mockRequest }),
       } as any);
 
-      const result = CurrentUser(undefined, mockContext);
+      // Call the decorator function directly
+      const decoratorFn = CurrentUser(undefined, mockContext);
+      const result = decoratorFn(mockContext, undefined, 0);
       expect(result).toEqual(mockUser);
     });
   });
@@ -49,7 +53,9 @@ describe('Decorators', () => {
         }),
       } as ExecutionContext;
 
-      const result = CurrentTenant(undefined, mockContext);
+      // Call the decorator function directly
+      const decoratorFn = CurrentTenant(undefined, mockContext);
+      const result = decoratorFn(mockContext, undefined, 0);
       expect(result).toEqual(mockTenant);
     });
 
@@ -65,7 +71,9 @@ describe('Decorators', () => {
         getContext: () => ({ req: mockRequest }),
       } as any);
 
-      const result = CurrentTenant(undefined, mockContext);
+      // Call the decorator function directly
+      const decoratorFn = CurrentTenant(undefined, mockContext);
+      const result = decoratorFn(mockContext, undefined, 0);
       expect(result).toEqual(mockTenant);
     });
   });
