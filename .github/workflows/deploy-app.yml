@@ -94,17 +94,11 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        environment: [dev, staging, prod]
+        environment: [dev]
         include:
           - environment: dev
-            app_name: crm-builder-dev-app
-            publish_profile_secret: AZURE_WEBAPP_PUBLISH_PROFILE_BACKEND_DEV
-          - environment: staging
-            app_name: crm-builder-staging-app
-            publish_profile_secret: AZURE_WEBAPP_PUBLISH_PROFILE_BACKEND_STAGING
-          - environment: prod
-            app_name: crm-builder-prod-app
-            publish_profile_secret: AZURE_WEBAPP_PUBLISH_PROFILE_BACKEND_PROD
+            app_name: new-smart-crm-backend
+            publish_profile_secret: AZUREAPPSERVICE_PUBLISH_PROFILE
     environment: ${{ matrix.environment }}
     env:
       NODE_VERSION: '18'
@@ -290,8 +284,8 @@ jobs:
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
-          app-name: ${{ matrix.app_name }}
-          publish-profile: ${{ secrets[matrix.publish_profile_secret] }}
+          app-name: new-smart-crm-backend
+          slot-name: dev
           package: release.zip
           startup-command: 'echo "🚀 Starting deployment..." && cd apps/backend && echo "📁 Current directory: $(pwd)" && echo "📦 Installing dependencies..." && npm ci --only=production && echo "🎯 Starting app..." && chmod +x start.sh && ./start.sh'
 
