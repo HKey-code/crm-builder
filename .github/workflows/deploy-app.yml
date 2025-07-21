@@ -151,14 +151,14 @@ jobs:
           test -f libs/schema-engine/prisma/schema.prisma || (echo "❌ Prisma schema not found!" && exit 1)
           echo "✅ Prisma schema found"
           
-          # Generate Prisma client from root directory
+          # Generate Prisma client from root directory with environment variables
           echo "🔧 Generating Prisma client..."
-          npx prisma generate --schema=libs/schema-engine/prisma/schema.prisma
+          DATABASE_URL="$DATABASE_URL" npx prisma generate --schema=libs/schema-engine/prisma/schema.prisma
           
           echo "🔨 Building backend application..."
           cd apps/backend
           
-          npm run build
+          DATABASE_URL="$DATABASE_URL" JWT_SECRET="$JWT_SECRET" npm run build
           
           # Verify main.js exists
           if [ ! -f "dist/main.js" ]; then
@@ -248,7 +248,7 @@ jobs:
           echo "🧪 Testing production build..."
           
           # Start the app in background with explicit environment variables
-          timeout 10s node dist/main.js &
+          timeout 10s DATABASE_URL="$DATABASE_URL" JWT_SECRET="$JWT_SECRET" node dist/main.js &
           APP_PID=$!
           
           # Wait for app to start
