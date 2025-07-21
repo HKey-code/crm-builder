@@ -20,6 +20,9 @@
   ],
   "exclude": [
     "node_modules",
-    "dist"
+    "dist",
+    "**/*.spec.ts",
+    "**/*.e2e-spec.ts",
+    "**/__tests__/**"
   ]
 }
