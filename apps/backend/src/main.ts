@@ -12,10 +12,19 @@ async function bootstrap() {
   console.log('Nest app booting...');
   const app = await NestFactory.create(AppModule);
   
+  // Enable CORS for frontend
+  app.enableCors({
+    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    credentials: true,
+  });
+
   const port = process.env.PORT || 3000;
   await app.listen(port);
+  
   console.log(`🚀 Application is running on port: ${port}`);
   console.log(`🚀 Healthcheck available at: /health and /healthcheck`);
+  
+  // Test deployment trigger - Mon Jul 21 01:45:00 CDT 2025
 }
 bootstrap();
 // Placeholder for main.ts
