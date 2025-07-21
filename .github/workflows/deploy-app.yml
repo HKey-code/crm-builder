@@ -220,15 +220,15 @@ jobs:
           echo "📊 Package size: $(du -h release.zip | cut -f1)"
 
       - name: Test production build
+        working-directory: apps/backend
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: |
           echo "🧪 Testing production build..."
-          cd apps/backend
           
-          # Start the app in background
-          timeout 10s npm run start:prod &
+          # Start the app in background with explicit environment variables
+          timeout 10s node dist/main.js &
           APP_PID=$!
           
           # Wait for app to start
