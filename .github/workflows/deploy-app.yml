@@ -118,8 +118,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: apps/backend/package-lock.json
+          # Temporarily disable caching to avoid workspace path resolution issues
+          # cache: 'npm'
+          # cache-dependency-path: '**/package-lock.json'
 
       - name: Install, build, and test backend
         run: |
@@ -127,11 +128,11 @@ jobs:
           node --version
           npm --version
           
-          echo "📦 Installing backend dependencies..."
-          cd apps/backend
+          echo "📦 Installing monorepo dependencies from root..."
           npm ci
           
           echo "🔨 Building backend application..."
+          cd apps/backend
           npm run build
           
           # Verify main.js exists
@@ -143,6 +144,22 @@ jobs:
           
           echo "✅ dist/main.js found"
           ls -la dist/
+          
+          # Return to monorepo root for verification
+          cd ../..
+          
+          echo "🔍 Verifying build artifacts in monorepo structure..."
+          echo "📋 Backend dist contents:"
+          ls -la apps/backend/dist/
+          
+          echo "🔍 Verifying main.js exists:"
+          if [ -f "apps/backend/dist/main.js" ]; then
+            echo "✅ apps/backend/dist/main.js exists"
+            echo "📄 File size: $(wc -c < apps/backend/dist/main.js) bytes"
+          else
+            echo "❌ ERROR: apps/backend/dist/main.js missing!"
+            exit 1
+          fi
           
           # Verify package.json exists
           if [ ! -f "package.json" ]; then
@@ -301,13 +318,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: apps/frontend/package-lock.json
+          # Temporarily disable caching to avoid workspace path resolution issues
+          # cache: 'npm'
+          # cache-dependency-path: '**/package-lock.json'
 
       - name: Install dependencies
         run: |
-          echo "📦 Installing frontend dependencies..."
-          cd apps/frontend
+          echo "📦 Installing monorepo dependencies from root..."
           npm ci
           echo "✅ Dependencies installed successfully"
 
