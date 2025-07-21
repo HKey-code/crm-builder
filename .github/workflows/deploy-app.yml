@@ -240,6 +240,20 @@ jobs:
           echo "✅ Deployment package created successfully - Ready for Azure deployment!"
           echo "📊 Package size: $(du -h release.zip | cut -f1)"
 
+      - name: Debug environment variables
+        working-directory: apps/backend
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          NODE_ENV: production
+        run: |
+          echo "🔍 Debugging environment variables..."
+          echo "Database URL protocol: ${DATABASE_URL%%:*}"
+          echo "Database URL length: ${#DATABASE_URL}"
+          echo "JWT_SECRET length: ${#JWT_SECRET}"
+          echo "NODE_ENV: $NODE_ENV"
+          echo "✅ Environment variables check completed"
+
       - name: Test production build
         working-directory: apps/backend
         env:
