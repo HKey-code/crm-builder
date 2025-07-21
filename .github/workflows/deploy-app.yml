@@ -177,7 +177,7 @@ jobs:
             exit 1
           fi
           
-          echo "✅ Deployment package created successfully"
+          echo "✅ Deployment package created successfully - Ready for Azure deployment!"
 
       - name: Test production build
         run: |
