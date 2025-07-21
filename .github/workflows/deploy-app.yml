@@ -163,6 +163,13 @@ jobs:
           
           # Verify critical files are in the zip
           echo "🔍 Verifying critical files in package..."
+          if unzip -l release.zip | grep -q "package.json"; then
+            echo "✅ package.json found in zip"
+          else
+            echo "❌ ERROR: package.json missing from zip!"
+            exit 1
+          fi
+          
           if unzip -l release.zip | grep -q "apps/backend/package.json"; then
             echo "✅ apps/backend/package.json found in zip"
           else
