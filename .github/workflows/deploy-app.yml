@@ -139,9 +139,21 @@ jobs:
             exit 1
           fi
           
+          echo "✅ Backend build completed successfully"
+          
+          # Return to monorepo root and verify dist/ is built into the structure
+          cd ../..
+          
+          # Verify dist/ exists in the monorepo structure
+          if [ ! -f "apps/backend/dist/main.js" ]; then
+            echo "❌ ERROR: apps/backend/dist/main.js not found in monorepo structure!"
+            exit 1
+          fi
+          
+          echo "✅ Build verified in monorepo structure"
+          
           # Package the full monorepo structure (excluding node_modules, .git, logs)
           echo "📦 Creating deployment package..."
-          cd ../..
           zip -r release.zip . -x "node_modules/*" "node_modules.tar.gz" ".git/*" "*.log" ".DS_Store" "coverage/*" "test-results/*"
           
           # Verify deployment package contents
@@ -197,7 +209,7 @@ jobs:
           app-name: ${{ matrix.app_name }}
           publish-profile: ${{ secrets[matrix.publish_profile_secret] }}
           package: release.zip
-          startup-command: 'cd apps/backend && npm ci --only=production && npm run build && npm run start:prod'
+          startup-command: 'cd apps/backend && npm ci --only=production && npm run start:prod'
 
 
 
