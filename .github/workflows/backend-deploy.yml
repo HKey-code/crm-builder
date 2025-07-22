@@ -175,19 +175,32 @@ jobs:
       run: |
         echo "🧹 Cleaning wwwroot via Azure CLI..."
         
+        # First, let's see what's available in your Azure subscription
+        echo "🔍 Checking available resource groups..."
+        az group list --query "[].{name:name, location:location}" --output table
+        
+        echo "🔍 Checking available App Services..."
+        az webapp list --query "[].{name:name, resourceGroup:resourceGroup, state:state}" --output table
+        
         # Get resource group from Azure App Service using list and filter
         echo "🔍 Finding resource group for App Service: ${{ env.AZURE_WEBAPP_NAME }}"
         RESOURCE_GROUP=$(az webapp list --query "[?name=='${{ env.AZURE_WEBAPP_NAME }}'].resourceGroup" --output tsv)
         
         if [ -z "$RESOURCE_GROUP" ]; then
-          echo "❌ ERROR: Could not find resource group for App Service"
-          echo "🔍 Available App Services:"
-          az webapp list --query "[].{name:name, resourceGroup:resourceGroup}" --output table
+          echo "❌ ERROR: Could not find resource group for App Service: ${{ env.AZURE_WEBAPP_NAME }}"
+          echo "🔍 This App Service might not exist or you might not have access to it"
+          echo "📋 Please check:"
+          echo "   1. The App Service name is correct: ${{ env.AZURE_WEBAPP_NAME }}"
+          echo "   2. Your Azure credentials have access to this App Service"
+          echo "   3. The App Service exists in your subscription"
           exit 1
         fi
         
         echo "📋 Resource Group: $RESOURCE_GROUP"
         echo "📋 App Service: ${{ env.AZURE_WEBAPP_NAME }}"
+        
+        # Export resource group for use in subsequent steps
+        echo "RESOURCE_GROUP=$RESOURCE_GROUP" >> $GITHUB_ENV
         
         # Temporarily disable run from package to allow cleanup
         echo "🔧 Temporarily disabling run from package..."
