@@ -171,9 +171,20 @@ jobs:
         echo "📄 Copying package.json..."
         cp apps/backend/package.json deploy-folder/
         
-        # Copy node_modules to deployment folder
-        echo "📦 Copying node_modules..."
-        cp -r node_modules deploy-folder/
+        # Copy and extract node_modules to deployment folder
+        echo "📦 Preparing node_modules for deployment..."
+        
+        # Create node_modules directory in deploy folder
+        mkdir -p deploy-folder/node_modules
+        
+        # Copy all production dependencies
+        echo "📦 Copying production dependencies..."
+        cp -r node_modules/* deploy-folder/node_modules/
+        
+        # Verify node_modules structure
+        echo "🔍 Verifying node_modules structure..."
+        ls -la deploy-folder/node_modules/ | head -10
+        echo "📊 Node modules count: $(find deploy-folder/node_modules -type d -name "node_modules" | wc -l)"
         
         # Update package.json for production deployment
         echo "🔧 Updating package.json for production..."
@@ -231,13 +242,45 @@ jobs:
         
         echo "✅ Cleanup preparation completed"
         
-    - name: Deploy to Azure Web App
-      uses: azure/webapps-deploy@v3
-      with:
-        app-name: ${{ env.AZURE_WEBAPP_NAME }}
-        slot-name: ${{ env.AZURE_SLOT }}
-        package: release.zip
-        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_BACKEND }}
+    - name: Deploy to Azure Web App (Bypass Oryx)
+      run: |
+        echo "🚀 Deploying directly to Azure (bypassing Oryx)..."
+        
+        # Extract publish profile
+        echo "📄 Extracting publish profile..."
+        echo "${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_BACKEND }}" > publish-profile.txt
+        
+        # Deploy using Azure CLI to bypass Oryx
+        echo "📦 Deploying package directly..."
+        az webapp deployment source config-zip \
+          --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+          --name ${{ env.AZURE_WEBAPP_NAME }} \
+          --slot ${{ env.AZURE_SLOT }} \
+          --src release.zip
+        
+        echo "✅ Direct deployment completed"
+        
+    - name: Configure Azure App Service for Pre-built Deployment
+      run: |
+        echo "🔧 Configuring Azure App Service for pre-built deployment..."
+        
+        # Disable build during deployment
+        echo "🚫 Disabling build during deployment..."
+        az webapp config appsettings set \
+          --name ${{ env.AZURE_WEBAPP_NAME }} \
+          --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+          --slot ${{ env.AZURE_SLOT }} \
+          --settings SCM_DO_BUILD_DURING_DEPLOYMENT=false
+        
+        # Set startup command to use our pre-built package
+        echo "🎯 Setting startup command..."
+        az webapp config set \
+          --name ${{ env.AZURE_WEBAPP_NAME }} \
+          --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+          --slot ${{ env.AZURE_SLOT }} \
+          --startup-file "npm start"
+        
+        echo "✅ Azure App Service configured for pre-built deployment"
         
     - name: Configure Azure App Service Environment Variables
       run: |
