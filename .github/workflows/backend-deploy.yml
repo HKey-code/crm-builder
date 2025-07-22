@@ -156,56 +156,65 @@ jobs:
         kill $APP_PID 2>/dev/null || true
         echo "✅ Production build test completed"
         
-    - name: Prepare deployment package for Oryx
+    - name: Prepare deployment package (Clean Oryx approach)
       run: |
-        echo "📦 Preparing deployment package for Oryx..."
+        echo "📦 Preparing clean deployment package for Oryx..."
         
         # Create a clean deployment directory
         mkdir -p deploy-folder
         
         # Copy built files to deployment folder
-        echo "🔧 Copying built files..."
+        echo "🔧 Copying compiled application files..."
         cp -r apps/backend/dist/* deploy-folder/
         
-        # Copy backend package.json to deployment folder
-        echo "📄 Copying package.json..."
+        # Copy complete package.json (with all dependencies)
+        echo "📄 Copying complete package.json with dependencies..."
         cp apps/backend/package.json deploy-folder/
         
-        # Let Oryx handle node_modules - don't include them in the package
-        echo "📦 Oryx will handle node_modules installation..."
+        # Copy package-lock.json for consistent dependency resolution
+        echo "🔒 Copying package-lock.json for consistent installs..."
+        cp package-lock.json deploy-folder/
         
         # Update package.json for production deployment
         echo "🔧 Updating package.json for production..."
         cd deploy-folder
         
-        # Update main entry point and start script
+        # Update main entry point and start script (keep all dependencies)
         node -e "
           const pkg = require('./package.json');
           pkg.main = 'main.js';
           pkg.scripts = pkg.scripts || {};
           pkg.scripts['start:prod'] = 'node main.js';
           pkg.scripts.start = 'node main.js';
-          // Remove any dist/ references since files are at root level
+          // Remove dev scripts but keep all dependencies
           delete pkg.scripts['start:dev'];
+          delete pkg.scripts['build'];
+          delete pkg.scripts['test'];
+          // Keep all dependencies - Oryx will install them
+          console.log('✅ Package.json updated for production');
+          console.log('📦 Dependencies to be installed by Oryx:');
+          Object.keys(pkg.dependencies || {}).forEach(dep => console.log('   - ' + dep));
           require('fs').writeFileSync('./package.json', JSON.stringify(pkg, null, 2));
         "
         
         # Verify final deployment structure
-        echo "🔍 Verifying final deployment structure..."
-        echo "📁 Files in current directory:"
+        echo "🔍 Verifying clean deployment structure..."
+        echo "📁 Files in deployment folder:"
         ls -la
-        echo "📄 Package.json contents:"
+        echo "📄 Package.json scripts:"
         cat package.json | grep -E "(main|start|scripts)" || echo "⚠️  No start script found"
+        echo "📦 Dependencies count: $(jq '.dependencies | length' package.json || echo '0')"
         
-        # Create zip from deployment folder (Oryx will handle dependencies)
-        echo "📦 Creating deployment zip for Oryx..."
-        zip -r ../release.zip . -x ".*" -x "__pycache__/*"
+        # Create clean zip (no node_modules, no source files)
+        echo "📦 Creating clean deployment zip..."
+        zip -r ../release.zip . -x ".*" -x "__pycache__/*" -x "node_modules/*" -x "*.ts" -x "src/*"
         
         echo "🔍 Verifying zip contents..."
         unzip -l ../release.zip | head -20
         
-        echo "✅ Deployment package created successfully for Oryx"
+        echo "✅ Clean deployment package created successfully"
         echo "📊 Package size: $(du -h ../release.zip | cut -f1)"
+        echo "🎯 Oryx will install dependencies and handle runtime setup"
         
     - name: Login to Azure
       uses: azure/login@v1
@@ -229,16 +238,16 @@ jobs:
         
         echo "✅ Azure App Service prepared for Oryx deployment"
         
-    - name: Deploy to Azure Web App (Using Oryx)
+    - name: Deploy to Azure Web App (Clean Oryx deployment)
       uses: azure/webapps-deploy@v3
       with:
         app-name: ${{ env.AZURE_WEBAPP_NAME }}
         package: release.zip
         publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_BACKEND }}
         
-    - name: Configure Azure App Service for Oryx Deployment
+    - name: Configure Azure App Service for Clean Oryx Deployment
       run: |
-        echo "🔧 Configuring Azure App Service for Oryx deployment..."
+        echo "🔧 Configuring Azure App Service for clean Oryx deployment..."
         
         # Enable Oryx build system (default behavior)
         echo "✅ Enabling Oryx build system..."
@@ -259,7 +268,7 @@ jobs:
           --slot ${{ env.AZURE_SLOT }} \
           --startup-file "npm start"
         
-        echo "✅ Azure App Service configured for Oryx deployment"
+        echo "✅ Azure App Service configured for clean Oryx deployment"
         
     - name: Configure Azure App Service Environment Variables
       run: |
