@@ -9,16 +9,27 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 async function bootstrap() {
-  console.log('Nest app booting...');
+  console.log('🚀 Bootstrap started...');
+  console.log('🔧 Environment check:');
+  console.log(`   - NODE_ENV: ${process.env.NODE_ENV}`);
+  console.log(`   - PORT: ${process.env.PORT}`);
+  console.log(`   - DATABASE_URL: ${process.env.DATABASE_URL ? 'SET' : 'NOT SET'}`);
+  console.log(`   - JWT_SECRET: ${process.env.JWT_SECRET ? 'SET' : 'NOT SET'}`);
+  
+  console.log('📦 Creating NestJS app...');
   const app = await NestFactory.create(AppModule);
+  console.log('✅ NestJS app created successfully');
   
   // Enable CORS for frontend
+  console.log('🔧 Configuring CORS...');
   app.enableCors({
     origin: process.env.FRONTEND_URL || 'http://localhost:3000',
     credentials: true,
   });
+  console.log('✅ CORS configured');
 
   const port = process.env.PORT || 3000;
+  console.log(`🎯 Starting server on port: ${port}`);
   await app.listen(port);
   
   console.log(`🚀 Application is running on port: ${port}`);
@@ -27,6 +38,7 @@ async function bootstrap() {
   // Test deployment trigger - Mon Jul 21 01:45:00 CDT 2025
   const dummyVar = 'workflow-trigger-test-v4';
   console.log(`🔧 Dummy variable: ${dummyVar}`);
+  console.log('✅ Bootstrap completed successfully');
 }
 bootstrap();
 // Placeholder for main.ts
