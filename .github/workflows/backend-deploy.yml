@@ -182,12 +182,18 @@ jobs:
           pkg.scripts = pkg.scripts || {};
           pkg.scripts['start:prod'] = 'node main.js';
           pkg.scripts.start = 'node main.js';
+          // Remove any dist/ references since files are at root level
+          delete pkg.scripts['start:dev'];
           require('fs').writeFileSync('./package.json', JSON.stringify(pkg, null, 2));
         "
         
+        # Remove any startup scripts that might interfere
+        echo "🧹 Removing startup scripts..."
+        rm -f start.sh startup.sh
+        
         # Create zip from deployment folder
         echo "📦 Creating deployment zip..."
-        zip -r ../release.zip . -x ".*" -x "__pycache__/*" -x "node_modules/*"
+        zip -r ../release.zip . -x ".*" -x "__pycache__/*" -x "node_modules/*" -x "start.sh" -x "startup.sh"
         
         echo "🔍 Verifying zip contents..."
         unzip -l ../release.zip | head -20
