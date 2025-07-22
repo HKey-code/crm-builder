@@ -171,10 +171,6 @@ jobs:
         echo "📄 Copying package.json..."
         cp apps/backend/package.json deploy-folder/
         
-        # Copy corrected start.sh to deployment folder
-        echo "📄 Copying start.sh..."
-        cp apps/backend/start.sh deploy-folder/
-        
         # Update package.json for production deployment
         echo "🔧 Updating package.json for production..."
         cd deploy-folder
@@ -190,10 +186,6 @@ jobs:
           delete pkg.scripts['start:dev'];
           require('fs').writeFileSync('./package.json', JSON.stringify(pkg, null, 2));
         "
-        
-        # Make start.sh executable
-        echo "🔧 Making start.sh executable..."
-        chmod +x start.sh
         
         # Create zip from deployment folder
         echo "📦 Creating deployment zip..."
