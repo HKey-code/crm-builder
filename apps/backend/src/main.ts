@@ -36,9 +36,10 @@ async function bootstrap() {
   console.log(`🚀 Healthcheck available at: /health and /healthcheck`);
   
   // Test deployment trigger - Mon Jul 21 01:45:00 CDT 2025
-  const dummyVar = 'workflow-trigger-test-v4';
+  const dummyVar = 'workflow-trigger-test-v5';
   console.log(`🔧 Dummy variable: ${dummyVar}`);
   console.log('✅ Bootstrap completed successfully');
+  console.log('🚀 Deployment test - Updated at: ' + new Date().toISOString());
 }
 bootstrap();
 // Placeholder for main.ts
