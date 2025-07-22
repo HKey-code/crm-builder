@@ -191,6 +191,40 @@ jobs:
         echo "🧹 Removing startup scripts..."
         rm -f start.sh startup.sh
         
+        # Create a proper startup script for Azure
+        echo "📝 Creating Azure startup script..."
+        echo '#!/bin/bash' > startup.sh
+        echo '' >> startup.sh
+        echo '# Set environment variables for the application' >> startup.sh
+        echo 'export DATABASE_URL="${DATABASE_URL:-}"' >> startup.sh
+        echo 'export JWT_SECRET="${JWT_SECRET:-}"' >> startup.sh
+        echo 'export NODE_ENV="production"' >> startup.sh
+        echo '' >> startup.sh
+        echo '# Validate required environment variables' >> startup.sh
+        echo 'if [ -z "$DATABASE_URL" ]; then' >> startup.sh
+        echo '    echo "❌ ERROR: DATABASE_URL environment variable is not set"' >> startup.sh
+        echo '    echo "🔧 Please configure DATABASE_URL in Azure App Service settings"' >> startup.sh
+        echo '    exit 1' >> startup.sh
+        echo 'fi' >> startup.sh
+        echo '' >> startup.sh
+        echo 'if [ -z "$JWT_SECRET" ]; then' >> startup.sh
+        echo '    echo "❌ ERROR: JWT_SECRET environment variable is not set"' >> startup.sh
+        echo '    echo "🔧 Please configure JWT_SECRET in Azure App Service settings"' >> startup.sh
+        echo '    exit 1' >> startup.sh
+        echo 'fi' >> startup.sh
+        echo '' >> startup.sh
+        echo '# Debug: Check if environment variables are set' >> startup.sh
+        echo 'echo "🔍 Environment variables check:"' >> startup.sh
+        echo 'echo "DATABASE_URL is ${DATABASE_URL:+SET}"' >> startup.sh
+        echo 'echo "JWT_SECRET is ${JWT_SECRET:+SET}"' >> startup.sh
+        echo 'echo "NODE_ENV is ${NODE_ENV:+SET}"' >> startup.sh
+        echo '' >> startup.sh
+        echo '# Start the application from the root directory' >> startup.sh
+        echo 'echo "🚀 Starting NestJS application..."' >> startup.sh
+        echo 'node main.js' >> startup.sh
+        echo '' >> startup.sh
+        chmod +x startup.sh
+        
         # Create zip from deployment folder
         echo "📦 Creating deployment zip..."
         zip -r ../release.zip . -x ".*" -x "__pycache__/*" -x "node_modules/*" -x "start.sh" -x "startup.sh"
