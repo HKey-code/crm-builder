@@ -28,21 +28,23 @@ async function bootstrap() {
   });
   console.log('✅ CORS configured');
 
-  const port = process.env.PORT || 3000;
+  const port = process.env.PORT || 8080;
   console.log(`🎯 Starting server on port: ${port}`);
-  await app.listen(port);
+  console.log(`🔧 Binding to 0.0.0.0:${port} for Azure App Service compatibility`);
+  await app.listen(port, '0.0.0.0');
   
   console.log(`🚀 Application is running on port: ${port}`);
   console.log(`🚀 Healthcheck available at: /health and /healthcheck`);
   
           // Test deployment trigger - Mon Jul 21 01:45:00 CDT 2025
-        const dummyVar = 'workflow-trigger-test-v11';
+        const dummyVar = 'workflow-trigger-test-v12';
         console.log(`🔧 Dummy variable: ${dummyVar}`);
         console.log('✅ Bootstrap completed successfully');
         console.log('🚀 Deployment test - Updated at: ' + new Date().toISOString());
         console.log('🎯 New deployment triggered - Using Oryx for deployment');
         console.log('🚀 Oryx deployment - Let Azure handle dependencies');
         console.log('🔑 Publish profile configured - Ready for deployment');
+        console.log('🔧 Port binding fixed for Azure App Service (8080)');
 }
 bootstrap();
 // Placeholder for main.ts
