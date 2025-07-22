@@ -23,7 +23,7 @@ async function bootstrap() {
   // Enable CORS for frontend
   console.log('🔧 Configuring CORS...');
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:4200',
+    origin: process.env.FRONTEND_URL || '*',
     credentials: true,
   });
   console.log('✅ CORS configured');
@@ -37,7 +37,7 @@ async function bootstrap() {
   console.log(`🚀 Healthcheck available at: /health and /healthcheck`);
   
           // Test deployment trigger - Mon Jul 21 01:45:00 CDT 2025
-        const dummyVar = 'workflow-trigger-test-v14';
+        const dummyVar = 'workflow-trigger-test-v15';
         console.log(`🔧 Dummy variable: ${dummyVar}`);
         console.log('✅ Bootstrap completed successfully');
         console.log('🚀 Deployment test - Updated at: ' + new Date().toISOString());
@@ -47,6 +47,7 @@ async function bootstrap() {
         console.log('🔧 Port binding fixed for Azure App Service (8080)');
         console.log('🧪 Health check test fixed for port 8080');
         console.log('🔍 Debugging deployment issues - checking environment variables');
+        console.log('🚀 Force deployment - Testing port 8080 fix');
 }
 bootstrap();
 // Placeholder for main.ts
