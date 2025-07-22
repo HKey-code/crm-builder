@@ -26,4 +26,4 @@ echo "NODE_ENV is ${NODE_ENV:+SET}"
 
 # Start the application
 echo "🚀 Starting NestJS application..."
-node dist/main.js 
+node main.js 
