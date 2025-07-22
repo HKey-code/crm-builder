@@ -171,6 +171,10 @@ jobs:
         echo "📄 Copying package.json..."
         cp apps/backend/package.json deploy-folder/
         
+        # Copy node_modules to deployment folder
+        echo "📦 Copying node_modules..."
+        cp -r node_modules deploy-folder/
+        
         # Update package.json for production deployment
         echo "🔧 Updating package.json for production..."
         cd deploy-folder
@@ -189,7 +193,7 @@ jobs:
         
         # Create zip from deployment folder
         echo "📦 Creating deployment zip..."
-        zip -r ../release.zip . -x ".*" -x "__pycache__/*" -x "node_modules/*"
+        zip -r ../release.zip . -x ".*" -x "__pycache__/*"
         
         echo "🔍 Verifying zip contents..."
         unzip -l ../release.zip | head -20
