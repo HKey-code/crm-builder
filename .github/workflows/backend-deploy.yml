@@ -166,6 +166,38 @@ jobs:
         echo "✅ Deployment package created successfully"
         echo "📊 Package size: $(du -h ../../release.zip | cut -f1)"
         
+    - name: Login to Azure
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+        
+    - name: Clean Azure wwwroot before deployment
+      run: |
+        echo "🧹 Cleaning wwwroot via Azure CLI..."
+        
+        # Get resource group from Azure App Service
+        RESOURCE_GROUP=$(az webapp show --name ${{ env.AZURE_WEBAPP_NAME }} --query resourceGroup --output tsv)
+        echo "📋 Resource Group: $RESOURCE_GROUP"
+        
+        # Temporarily disable run from package to allow cleanup
+        echo "🔧 Temporarily disabling run from package..."
+        az webapp config appsettings set \
+          --name ${{ env.AZURE_WEBAPP_NAME }} \
+          --resource-group "$RESOURCE_GROUP" \
+          --settings WEBSITE_RUN_FROM_PACKAGE=0
+        
+        # Restart the app to apply changes
+        echo "🔄 Restarting Azure App Service..."
+        az webapp restart \
+          --name ${{ env.AZURE_WEBAPP_NAME }} \
+          --resource-group "$RESOURCE_GROUP"
+        
+        # Wait for restart to complete
+        echo "⏳ Waiting for restart to complete..."
+        sleep 30
+        
+        echo "✅ Cleanup preparation completed"
+        
     - name: Deploy to Azure Web App
       uses: azure/webapps-deploy@v3
       with:
