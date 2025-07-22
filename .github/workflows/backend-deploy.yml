@@ -160,13 +160,13 @@ jobs:
       run: |
         echo "📦 Creating deployment package..."
         cd apps/backend/dist
-        zip -r ../../release.zip .
+        zip -r ../../../release.zip * -x ".*"
         
         echo "🔍 Verifying zip contents..."
-        unzip -l ../../release.zip | head -20
+        unzip -l ../../../release.zip | head -20
         
         echo "✅ Deployment package created successfully"
-        echo "📊 Package size: $(du -h ../../release.zip | cut -f1)"
+        echo "📊 Package size: $(du -h ../../../release.zip | cut -f1)"
         
     - name: Login to Azure
       uses: azure/login@v1
