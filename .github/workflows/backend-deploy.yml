@@ -208,12 +208,12 @@ jobs:
         
         # Verify final deployment structure
         echo "🔍 Verifying final deployment structure..."
-        echo "📁 Files in deploy-folder:"
-        ls -la deploy-folder/
+        echo "📁 Files in current directory:"
+        ls -la
         echo "📦 Node modules structure:"
-        ls -la deploy-folder/node_modules/ | head -5
+        ls -la node_modules/ | head -5
         echo "📄 Package.json contents:"
-        cat deploy-folder/package.json | grep -E "(main|start|scripts)" || echo "⚠️  No start script found"
+        cat package.json | grep -E "(main|start|scripts)" || echo "⚠️  No start script found"
         
         # Create zip from deployment folder
         echo "📦 Creating deployment zip..."
