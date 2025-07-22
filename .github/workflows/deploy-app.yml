@@ -298,18 +298,10 @@ jobs:
           echo "   - NODE_ENV: production"
           echo "🔗 Go to: Azure Portal > App Service > Configuration > Application settings"
 
-      - name: Check for uncommitted migrations
+      - name: Skip migrations (tables already exist)
         run: |
-          echo "🔍 Checking for uncommitted Prisma migrations..."
-          echo "⚠️ Temporarily disabled migration check - applying migrations directly"
-          echo "✅ Proceeding with migration deployment"
-
-      - name: Apply Prisma migrations
-        run: |
-          echo "🚀 Applying Prisma migrations to production database..."
-          npx prisma migrate deploy --schema=libs/schema-engine/prisma/schema.prisma
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          echo "🔧 Skipping migrations - tables already exist on server"
+          echo "✅ Proceeding with app deployment"
 
       - name: Verify deployment
         run: |
