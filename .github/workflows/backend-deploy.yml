@@ -26,7 +26,9 @@ on:
           - prod
 
 env:
-  AZURE_WEBAPP_NAME: new-smart-crm-backend-dev-bacrgwh7egdfavfv
+  AZURE_WEBAPP_NAME: new-smart-crm-backend
+  AZURE_RESOURCE_GROUP: crm-dev-rg
+  AZURE_SLOT: dev
   NODE_VERSION: '22'
   NODE_ENV: 'production'
 
@@ -173,47 +175,22 @@ jobs:
         
     - name: Clean Azure wwwroot before deployment
       run: |
-        echo "🧹 Cleaning wwwroot via Azure CLI..."
-        
-        # First, let's see what's available in your Azure subscription
-        echo "🔍 Checking available resource groups..."
-        az group list --query "[].{name:name, location:location}" --output table
-        
-        echo "🔍 Checking available App Services..."
-        az webapp list --query "[].{name:name, resourceGroup:resourceGroup, state:state}" --output table
-        
-        # Get resource group from Azure App Service using list and filter
-        echo "🔍 Finding resource group for App Service: ${{ env.AZURE_WEBAPP_NAME }}"
-        RESOURCE_GROUP=$(az webapp list --query "[?name=='${{ env.AZURE_WEBAPP_NAME }}'].resourceGroup" --output tsv)
-        
-        if [ -z "$RESOURCE_GROUP" ]; then
-          echo "❌ ERROR: Could not find resource group for App Service: ${{ env.AZURE_WEBAPP_NAME }}"
-          echo "🔍 This App Service might not exist or you might not have access to it"
-          echo "📋 Please check:"
-          echo "   1. The App Service name is correct: ${{ env.AZURE_WEBAPP_NAME }}"
-          echo "   2. Your Azure credentials have access to this App Service"
-          echo "   3. The App Service exists in your subscription"
-          exit 1
-        fi
-        
-        echo "📋 Resource Group: $RESOURCE_GROUP"
-        echo "📋 App Service: ${{ env.AZURE_WEBAPP_NAME }}"
-        
-        # Export resource group for use in subsequent steps
-        echo "RESOURCE_GROUP=$RESOURCE_GROUP" >> $GITHUB_ENV
+        echo "🧹 Cleaning wwwroot for slot '${{ env.AZURE_SLOT }}' via Azure CLI..."
         
         # Temporarily disable run from package to allow cleanup
         echo "🔧 Temporarily disabling run from package..."
         az webapp config appsettings set \
           --name ${{ env.AZURE_WEBAPP_NAME }} \
-          --resource-group "$RESOURCE_GROUP" \
+          --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+          --slot ${{ env.AZURE_SLOT }} \
           --settings WEBSITE_RUN_FROM_PACKAGE=0
         
         # Restart the app to apply changes
         echo "🔄 Restarting Azure App Service..."
         az webapp restart \
           --name ${{ env.AZURE_WEBAPP_NAME }} \
-          --resource-group "$RESOURCE_GROUP"
+          --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+          --slot ${{ env.AZURE_SLOT }}
         
         # Wait for restart to complete
         echo "⏳ Waiting for restart to complete..."
@@ -225,6 +202,7 @@ jobs:
       uses: azure/webapps-deploy@v3
       with:
         app-name: ${{ env.AZURE_WEBAPP_NAME }}
+        slot-name: ${{ env.AZURE_SLOT }}
         package: release.zip
         publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_BACKEND }}
         
