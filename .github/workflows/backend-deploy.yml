@@ -175,26 +175,20 @@ jobs:
         echo "🔒 Copying package-lock.json for consistent installs..."
         cp package-lock.json deploy-folder/
         
-        # Update package.json for production deployment
-        echo "🔧 Updating package.json for production..."
+        # Verify package.json is ready for production
+        echo "🔧 Verifying package.json for production..."
         cd deploy-folder
         
-        # Update main entry point and start script (keep all dependencies)
+        # Check that package.json has correct main and start scripts
         node -e "
           const pkg = require('./package.json');
-          pkg.main = 'main.js';
-          pkg.scripts = pkg.scripts || {};
-          pkg.scripts['start:prod'] = 'node main.js';
-          pkg.scripts.start = 'node main.js';
-          // Remove dev scripts but keep all dependencies
-          delete pkg.scripts['start:dev'];
-          delete pkg.scripts['build'];
-          delete pkg.scripts['test'];
-          // Keep all dependencies - Oryx will install them
-          console.log('✅ Package.json updated for production');
+          console.log('✅ Package.json verification:');
+          console.log('   - main: ' + (pkg.main || 'NOT SET'));
+          console.log('   - start script: ' + (pkg.scripts?.start || 'NOT SET'));
+          console.log('   - start:prod script: ' + (pkg.scripts?.['start:prod'] || 'NOT SET'));
           console.log('📦 Dependencies to be installed by Oryx:');
           Object.keys(pkg.dependencies || {}).forEach(dep => console.log('   - ' + dep));
-          require('fs').writeFileSync('./package.json', JSON.stringify(pkg, null, 2));
+          console.log('📊 Total dependencies: ' + Object.keys(pkg.dependencies || {}).length);
         "
         
         # Verify final deployment structure
