@@ -175,9 +175,9 @@ jobs:
       run: |
         echo "🧹 Cleaning wwwroot via Azure CLI..."
         
-        # Get resource group from Azure App Service
+        # Get resource group from Azure App Service using list and filter
         echo "🔍 Finding resource group for App Service: ${{ env.AZURE_WEBAPP_NAME }}"
-        RESOURCE_GROUP=$(az webapp show --name ${{ env.AZURE_WEBAPP_NAME }} --query resourceGroup --output tsv)
+        RESOURCE_GROUP=$(az webapp list --query "[?name=='${{ env.AZURE_WEBAPP_NAME }}'].resourceGroup" --output tsv)
         
         if [ -z "$RESOURCE_GROUP" ]; then
           echo "❌ ERROR: Could not find resource group for App Service"
