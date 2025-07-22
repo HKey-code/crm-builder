@@ -1,0 +1,190 @@
+name: Deploy Backend to Azure Web App
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'apps/backend/**'
+      - 'libs/**'
+      - '.github/workflows/backend-deploy.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'apps/backend/**'
+      - 'libs/**'
+      - '.github/workflows/backend-deploy.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+
+env:
+  AZURE_WEBAPP_NAME: new-smart-crm-backend-dev-bacrgwh7egdfavfv
+  NODE_VERSION: '22'
+  NODE_ENV: 'production'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment: dev
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: '**/package-lock.json'
+        
+    - name: Debug environment variables
+      env:
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      run: |
+        echo "🔍 Debugging environment variables..."
+        echo "DATABASE_URL is ${DATABASE_URL:+SET}"
+        echo "JWT_SECRET is ${JWT_SECRET:+SET}"
+        echo "Database URL protocol: ${DATABASE_URL%%:*}"
+        echo "Database URL length: ${#DATABASE_URL}"
+        echo "JWT_SECRET length: ${#JWT_SECRET}"
+        echo "NODE_ENV: ${{ env.NODE_ENV }}"
+        echo "✅ Environment variables check completed"
+        
+    - name: Install monorepo dependencies
+      env:
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        JWT_SECRET: ${{ secrets.JWT_SECRET }}
+        NODE_ENV: production
+      run: |
+        echo "🔨 Setting up Node.js environment..."
+        node --version
+        npm --version
+        
+        echo "📦 Installing monorepo dependencies from root..."
+        npm ci
+        
+        # Validate Prisma schema exists
+        echo "🔍 Validating Prisma schema file..."
+        test -f libs/schema-engine/prisma/schema.prisma || (echo "❌ Prisma schema not found!" && exit 1)
+        echo "✅ Prisma schema found"
+        
+    - name: Generate Prisma client
+      env:
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        JWT_SECRET: ${{ secrets.JWT_SECRET }}
+        NODE_ENV: production
+      run: |
+        echo "🔧 Generating Prisma client..."
+        npx prisma generate --schema=libs/schema-engine/prisma/schema.prisma
+        echo "✅ Prisma client generated"
+        
+    - name: Build backend application
+      working-directory: apps/backend
+      env:
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        JWT_SECRET: ${{ secrets.JWT_SECRET }}
+        NODE_ENV: production
+      run: |
+        echo "🔨 Building backend application..."
+        npm run build
+        
+        # Verify main.js exists
+        if [ ! -f "dist/main.js" ]; then
+          echo "❌ ERROR: dist/main.js not found!"
+          ls -la dist/ || echo "dist/ directory not found!"
+          exit 1
+        fi
+        
+        echo "✅ dist/main.js found"
+        ls -la dist/
+        
+        # Return to monorepo root for verification
+        cd ../..
+        
+        echo "🔍 Verifying build artifacts in monorepo structure..."
+        echo "📋 Backend dist contents:"
+        ls -la apps/backend/dist/
+        
+        echo "🔍 Verifying main.js exists:"
+        if [ -f "apps/backend/dist/main.js" ]; then
+          echo "✅ apps/backend/dist/main.js exists"
+          echo "📄 File size: $(wc -c < apps/backend/dist/main.js) bytes"
+        else
+          echo "❌ ERROR: apps/backend/dist/main.js missing!"
+          exit 1
+        fi
+        
+        echo "✅ Backend build completed successfully"
+        
+    - name: Test production build
+      working-directory: apps/backend
+      env:
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        JWT_SECRET: ${{ secrets.JWT_SECRET }}
+        NODE_ENV: production
+      run: |
+        echo "🧪 Testing production build..."
+        
+        # Start the app in background
+        timeout 10s node dist/main.js &
+        APP_PID=$!
+        
+        # Wait for app to start
+        sleep 5
+        
+        # Test healthcheck endpoint
+        if curl -f http://localhost:3000/health > /dev/null 2>&1; then
+          echo "✅ Healthcheck endpoint working"
+        else
+          echo "❌ Healthcheck endpoint failed"
+          exit 1
+        fi
+        
+        # Kill the app
+        kill $APP_PID 2>/dev/null || true
+        echo "✅ Production build test completed"
+        
+    - name: Zip backend build
+      run: |
+        echo "📦 Creating deployment package..."
+        cd apps/backend/dist
+        zip -r ../../release.zip .
+        
+        echo "🔍 Verifying zip contents..."
+        unzip -l ../../release.zip | head -20
+        
+        echo "✅ Deployment package created successfully"
+        echo "📊 Package size: $(du -h ../../release.zip | cut -f1)"
+        
+    - name: Deploy to Azure Web App
+      uses: azure/webapps-deploy@v3
+      with:
+        app-name: ${{ env.AZURE_WEBAPP_NAME }}
+        package: release.zip
+        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_BACKEND }}
+        
+    - name: Configure Azure App Service Environment Variables
+      run: |
+        echo "🔧 Note: Environment variables need to be configured manually in Azure App Service"
+        echo "📋 Please configure these environment variables in Azure App Service settings:"
+        echo "   - DATABASE_URL: ${{ secrets.DATABASE_URL }}"
+        echo "   - JWT_SECRET: ${{ secrets.JWT_SECRET }}"
+        echo "   - NODE_ENV: production"
+        echo "🔗 Go to: Azure Portal > App Service > Configuration > Application settings"
+        
+    - name: Verify deployment
+      run: |
+        echo "🔍 Verifying backend deployment..."
+        echo "App Service: ${{ env.AZURE_WEBAPP_NAME }}"
+        echo "Environment: ${{ github.event.inputs.environment || 'dev' }}"
+        echo "✅ Backend deployment completed successfully" 
