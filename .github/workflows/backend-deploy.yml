@@ -174,9 +174,13 @@ jobs:
         # Extract and prepare node_modules for deployment
         echo "📦 Preparing node_modules for deployment..."
         
-        # Copy the entire node_modules directory structure
-        echo "📦 Copying node_modules directory..."
-        cp -r node_modules deploy-folder/
+        # Create node_modules directory and copy with rsync to preserve structure
+        echo "📦 Creating node_modules directory..."
+        mkdir -p deploy-folder/node_modules
+        
+        # Use rsync to properly copy node_modules with all symlinks and structure
+        echo "📦 Copying node_modules with rsync..."
+        rsync -a --exclude='.bin' node_modules/ deploy-folder/node_modules/
         
         # Verify node_modules structure and key dependencies
         echo "🔍 Verifying node_modules structure..."
@@ -215,9 +219,9 @@ jobs:
         echo "📄 Package.json contents:"
         cat package.json | grep -E "(main|start|scripts)" || echo "⚠️  No start script found"
         
-        # Create zip from deployment folder
+        # Create zip from deployment folder (exclude any tarballs)
         echo "📦 Creating deployment zip..."
-        zip -r ../release.zip . -x ".*" -x "__pycache__/*"
+        zip -r ../release.zip . -x ".*" -x "__pycache__/*" -x "*.tar.gz" -x "node_modules/.bin/*"
         
         echo "🔍 Verifying zip contents..."
         unzip -l ../release.zip | head -20
