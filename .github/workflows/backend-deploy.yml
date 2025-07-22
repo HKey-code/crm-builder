@@ -145,7 +145,7 @@ jobs:
         sleep 5
         
         # Test healthcheck endpoint
-        if curl -f http://localhost:3000/health > /dev/null 2>&1; then
+        if curl -f http://localhost:8080/health > /dev/null 2>&1; then
           echo "✅ Healthcheck endpoint working"
         else
           echo "❌ Healthcheck endpoint failed"
