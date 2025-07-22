@@ -171,20 +171,24 @@ jobs:
         echo "📄 Copying package.json..."
         cp apps/backend/package.json deploy-folder/
         
-        # Copy and extract node_modules to deployment folder
+        # Extract and prepare node_modules for deployment
         echo "📦 Preparing node_modules for deployment..."
         
-        # Create node_modules directory in deploy folder
-        mkdir -p deploy-folder/node_modules
+        # Copy the entire node_modules directory structure
+        echo "📦 Copying node_modules directory..."
+        cp -r node_modules deploy-folder/
         
-        # Copy all production dependencies
-        echo "📦 Copying production dependencies..."
-        cp -r node_modules/* deploy-folder/node_modules/
-        
-        # Verify node_modules structure
+        # Verify node_modules structure and key dependencies
         echo "🔍 Verifying node_modules structure..."
         ls -la deploy-folder/node_modules/ | head -10
-        echo "📊 Node modules count: $(find deploy-folder/node_modules -type d -name "node_modules" | wc -l)"
+        echo "📦 Checking for key dependencies:"
+        ls -la deploy-folder/node_modules/@nestjs/ 2>/dev/null || echo "⚠️  @nestjs not found"
+        ls -la deploy-folder/node_modules/express/ 2>/dev/null || echo "⚠️  express not found"
+        ls -la deploy-folder/node_modules/@prisma/ 2>/dev/null || echo "⚠️  @prisma not found"
+        
+        # Count total modules for verification
+        echo "📊 Total node_modules count: $(find deploy-folder/node_modules -type d | wc -l)"
+        echo "📊 Total files in node_modules: $(find deploy-folder/node_modules -type f | wc -l)"
         
         # Update package.json for production deployment
         echo "🔧 Updating package.json for production..."
@@ -201,6 +205,15 @@ jobs:
           delete pkg.scripts['start:dev'];
           require('fs').writeFileSync('./package.json', JSON.stringify(pkg, null, 2));
         "
+        
+        # Verify final deployment structure
+        echo "🔍 Verifying final deployment structure..."
+        echo "📁 Files in deploy-folder:"
+        ls -la deploy-folder/
+        echo "📦 Node modules structure:"
+        ls -la deploy-folder/node_modules/ | head -5
+        echo "📄 Package.json contents:"
+        cat deploy-folder/package.json | grep -E "(main|start|scripts)" || echo "⚠️  No start script found"
         
         # Create zip from deployment folder
         echo "📦 Creating deployment zip..."
