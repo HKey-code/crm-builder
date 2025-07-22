@@ -263,13 +263,14 @@ jobs:
         echo "📄 Extracting publish profile..."
         echo "${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_BACKEND }}" > publish-profile.txt
         
-        # Deploy using Azure CLI to bypass Oryx
+        # Deploy using Azure CLI with explicit settings to bypass Oryx
         echo "📦 Deploying package directly..."
         az webapp deployment source config-zip \
           --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
           --name ${{ env.AZURE_WEBAPP_NAME }} \
           --slot ${{ env.AZURE_SLOT }} \
-          --src release.zip
+          --src release.zip \
+          --timeout 1800
         
         echo "✅ Direct deployment completed"
         
@@ -277,13 +278,17 @@ jobs:
       run: |
         echo "🔧 Configuring Azure App Service for pre-built deployment..."
         
-        # Disable build during deployment
-        echo "🚫 Disabling build during deployment..."
+        # Completely disable Oryx and build systems
+        echo "🚫 Disabling Oryx and build systems..."
         az webapp config appsettings set \
           --name ${{ env.AZURE_WEBAPP_NAME }} \
           --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
           --slot ${{ env.AZURE_SLOT }} \
-          --settings SCM_DO_BUILD_DURING_DEPLOYMENT=false
+          --settings \
+          SCM_DO_BUILD_DURING_DEPLOYMENT=false \
+          ENABLE_ORYX_BUILD=false \
+          WEBSITE_RUN_FROM_PACKAGE=0 \
+          WEBSITE_ENABLE_APP_SERVICE_EDITOR=false
         
         # Set startup command to use our pre-built package
         echo "🎯 Setting startup command..."
