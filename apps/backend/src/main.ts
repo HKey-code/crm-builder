@@ -35,13 +35,13 @@ async function bootstrap() {
   console.log(`🚀 Application is running on port: ${port}`);
   console.log(`🚀 Healthcheck available at: /health and /healthcheck`);
   
-  // Test deployment trigger - Mon Jul 21 01:45:00 CDT 2025
-  const dummyVar = 'workflow-trigger-test-v9';
-  console.log(`🔧 Dummy variable: ${dummyVar}`);
-  console.log('✅ Bootstrap completed successfully');
-  console.log('🚀 Deployment test - Updated at: ' + new Date().toISOString());
-  console.log('🎯 New deployment triggered - Using rsync for node_modules');
-  console.log('🚀 Clean deployment - Proper node_modules extraction');
+          // Test deployment trigger - Mon Jul 21 01:45:00 CDT 2025
+        const dummyVar = 'workflow-trigger-test-v10';
+        console.log(`🔧 Dummy variable: ${dummyVar}`);
+        console.log('✅ Bootstrap completed successfully');
+        console.log('🚀 Deployment test - Updated at: ' + new Date().toISOString());
+        console.log('🎯 New deployment triggered - Using Oryx for deployment');
+        console.log('🚀 Oryx deployment - Let Azure handle dependencies');
 }
 bootstrap();
 // Placeholder for main.ts

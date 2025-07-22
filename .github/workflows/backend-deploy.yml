@@ -156,9 +156,9 @@ jobs:
         kill $APP_PID 2>/dev/null || true
         echo "✅ Production build test completed"
         
-    - name: Prepare deployment package
+    - name: Prepare deployment package for Oryx
       run: |
-        echo "📦 Preparing deployment package..."
+        echo "📦 Preparing deployment package for Oryx..."
         
         # Create a clean deployment directory
         mkdir -p deploy-folder
@@ -171,28 +171,8 @@ jobs:
         echo "📄 Copying package.json..."
         cp apps/backend/package.json deploy-folder/
         
-        # Extract and prepare node_modules for deployment
-        echo "📦 Preparing node_modules for deployment..."
-        
-        # Create node_modules directory and copy with rsync to preserve structure
-        echo "📦 Creating node_modules directory..."
-        mkdir -p deploy-folder/node_modules
-        
-        # Use rsync to properly copy node_modules with all symlinks and structure
-        echo "📦 Copying node_modules with rsync..."
-        rsync -a --exclude='.bin' node_modules/ deploy-folder/node_modules/
-        
-        # Verify node_modules structure and key dependencies
-        echo "🔍 Verifying node_modules structure..."
-        ls -la deploy-folder/node_modules/ | head -10
-        echo "📦 Checking for key dependencies:"
-        ls -la deploy-folder/node_modules/@nestjs/ 2>/dev/null || echo "⚠️  @nestjs not found"
-        ls -la deploy-folder/node_modules/express/ 2>/dev/null || echo "⚠️  express not found"
-        ls -la deploy-folder/node_modules/@prisma/ 2>/dev/null || echo "⚠️  @prisma not found"
-        
-        # Count total modules for verification
-        echo "📊 Total node_modules count: $(find deploy-folder/node_modules -type d | wc -l)"
-        echo "📊 Total files in node_modules: $(find deploy-folder/node_modules -type f | wc -l)"
+        # Let Oryx handle node_modules - don't include them in the package
+        echo "📦 Oryx will handle node_modules installation..."
         
         # Update package.json for production deployment
         echo "🔧 Updating package.json for production..."
@@ -214,19 +194,17 @@ jobs:
         echo "🔍 Verifying final deployment structure..."
         echo "📁 Files in current directory:"
         ls -la
-        echo "📦 Node modules structure:"
-        ls -la node_modules/ | head -5
         echo "📄 Package.json contents:"
         cat package.json | grep -E "(main|start|scripts)" || echo "⚠️  No start script found"
         
-        # Create zip from deployment folder (exclude any tarballs)
-        echo "📦 Creating deployment zip..."
-        zip -r ../release.zip . -x ".*" -x "__pycache__/*" -x "*.tar.gz" -x "node_modules/.bin/*"
+        # Create zip from deployment folder (Oryx will handle dependencies)
+        echo "📦 Creating deployment zip for Oryx..."
+        zip -r ../release.zip . -x ".*" -x "__pycache__/*"
         
         echo "🔍 Verifying zip contents..."
         unzip -l ../release.zip | head -20
         
-        echo "✅ Deployment package created successfully"
+        echo "✅ Deployment package created successfully for Oryx"
         echo "📊 Package size: $(du -h ../release.zip | cut -f1)"
         
     - name: Login to Azure
@@ -234,67 +212,46 @@ jobs:
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
         
-    - name: Clean Azure wwwroot before deployment
+    - name: Prepare Azure App Service for Oryx Deployment
       run: |
-        echo "🧹 Cleaning wwwroot for slot '${{ env.AZURE_SLOT }}' via Azure CLI..."
+        echo "🔧 Preparing Azure App Service for Oryx deployment..."
         
-        # Temporarily disable run from package to allow cleanup
-        echo "🔧 Temporarily disabling run from package..."
-        az webapp config appsettings set \
-          --name ${{ env.AZURE_WEBAPP_NAME }} \
-          --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-          --slot ${{ env.AZURE_SLOT }} \
-          --settings WEBSITE_RUN_FROM_PACKAGE=0
-        
-        # Restart the app to apply changes
-        echo "🔄 Restarting Azure App Service..."
-        az webapp restart \
-          --name ${{ env.AZURE_WEBAPP_NAME }} \
-          --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-          --slot ${{ env.AZURE_SLOT }}
-        
-        # Wait for restart to complete
-        echo "⏳ Waiting for restart to complete..."
-        sleep 30
-        
-        echo "✅ Cleanup preparation completed"
-        
-    - name: Deploy to Azure Web App (Bypass Oryx)
-      run: |
-        echo "🚀 Deploying directly to Azure (bypassing Oryx)..."
-        
-        # Extract publish profile
-        echo "📄 Extracting publish profile..."
-        echo "${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_BACKEND }}" > publish-profile.txt
-        
-        # Deploy using Azure CLI with explicit settings to bypass Oryx
-        echo "📦 Deploying package directly..."
-        az webapp deployment source config-zip \
-          --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-          --name ${{ env.AZURE_WEBAPP_NAME }} \
-          --slot ${{ env.AZURE_SLOT }} \
-          --src release.zip \
-          --timeout 1800
-        
-        echo "✅ Direct deployment completed"
-        
-    - name: Configure Azure App Service for Pre-built Deployment
-      run: |
-        echo "🔧 Configuring Azure App Service for pre-built deployment..."
-        
-        # Completely disable Oryx and build systems
-        echo "🚫 Disabling Oryx and build systems..."
+        # Enable Oryx build system and run from package
+        echo "✅ Enabling Oryx build system..."
         az webapp config appsettings set \
           --name ${{ env.AZURE_WEBAPP_NAME }} \
           --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
           --slot ${{ env.AZURE_SLOT }} \
           --settings \
-          SCM_DO_BUILD_DURING_DEPLOYMENT=false \
-          ENABLE_ORYX_BUILD=false \
-          WEBSITE_RUN_FROM_PACKAGE=0 \
-          WEBSITE_ENABLE_APP_SERVICE_EDITOR=false
+          SCM_DO_BUILD_DURING_DEPLOYMENT=true \
+          ENABLE_ORYX_BUILD=true \
+          WEBSITE_RUN_FROM_PACKAGE=1
         
-        # Set startup command to use our pre-built package
+        echo "✅ Azure App Service prepared for Oryx deployment"
+        
+    - name: Deploy to Azure Web App (Using Oryx)
+      uses: azure/webapps-deploy@v3
+      with:
+        app-name: ${{ env.AZURE_WEBAPP_NAME }}
+        package: release.zip
+        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_BACKEND }}
+        
+    - name: Configure Azure App Service for Oryx Deployment
+      run: |
+        echo "🔧 Configuring Azure App Service for Oryx deployment..."
+        
+        # Enable Oryx build system (default behavior)
+        echo "✅ Enabling Oryx build system..."
+        az webapp config appsettings set \
+          --name ${{ env.AZURE_WEBAPP_NAME }} \
+          --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+          --slot ${{ env.AZURE_SLOT }} \
+          --settings \
+          SCM_DO_BUILD_DURING_DEPLOYMENT=true \
+          ENABLE_ORYX_BUILD=true \
+          WEBSITE_RUN_FROM_PACKAGE=1
+        
+        # Set startup command to use npm start
         echo "🎯 Setting startup command..."
         az webapp config set \
           --name ${{ env.AZURE_WEBAPP_NAME }} \
@@ -302,7 +259,7 @@ jobs:
           --slot ${{ env.AZURE_SLOT }} \
           --startup-file "npm start"
         
-        echo "✅ Azure App Service configured for pre-built deployment"
+        echo "✅ Azure App Service configured for Oryx deployment"
         
     - name: Configure Azure App Service Environment Variables
       run: |
