@@ -159,8 +159,13 @@ jobs:
     - name: Zip backend build
       run: |
         echo "📦 Creating deployment package..."
+        
+        # Create zip with files at root level
+        echo "🔧 Zipping files to root level..."
         cd apps/backend/dist
-        zip -r ../../../release.zip * -x ".*"
+        
+        # Create zip with all contents at root level
+        zip -r ../../../release.zip . -x ".*" -x "__pycache__/*" -x "node_modules/*"
         
         echo "🔍 Verifying zip contents..."
         unzip -l ../../../release.zip | head -20
