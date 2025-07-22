@@ -156,22 +156,44 @@ jobs:
         kill $APP_PID 2>/dev/null || true
         echo "✅ Production build test completed"
         
-    - name: Zip backend build
+    - name: Prepare deployment package
       run: |
-        echo "📦 Creating deployment package..."
+        echo "📦 Preparing deployment package..."
         
-        # Create zip with files at root level
-        echo "🔧 Zipping files to root level..."
-        cd apps/backend/dist
+        # Create a clean deployment directory
+        mkdir -p deploy-folder
         
-        # Create zip with all contents at root level
-        zip -r ../../../release.zip . -x ".*" -x "__pycache__/*" -x "node_modules/*"
+        # Copy built files to deployment folder
+        echo "🔧 Copying built files..."
+        cp -r apps/backend/dist/* deploy-folder/
+        
+        # Copy backend package.json to deployment folder
+        echo "📄 Copying package.json..."
+        cp apps/backend/package.json deploy-folder/
+        
+        # Update package.json for production deployment
+        echo "🔧 Updating package.json for production..."
+        cd deploy-folder
+        
+        # Update main entry point and start script
+        node -e "
+          const pkg = require('./package.json');
+          pkg.main = 'main.js';
+          pkg.scripts = pkg.scripts || {};
+          pkg.scripts['start:prod'] = 'node main.js';
+          pkg.scripts.start = 'node main.js';
+          require('fs').writeFileSync('./package.json', JSON.stringify(pkg, null, 2));
+        "
+        
+        # Create zip from deployment folder
+        echo "📦 Creating deployment zip..."
+        zip -r ../release.zip . -x ".*" -x "__pycache__/*" -x "node_modules/*"
         
         echo "🔍 Verifying zip contents..."
-        unzip -l ../../../release.zip | head -20
+        unzip -l ../release.zip | head -20
         
         echo "✅ Deployment package created successfully"
-        echo "📊 Package size: $(du -h ../../../release.zip | cut -f1)"
+        echo "📊 Package size: $(du -h ../release.zip | cut -f1)"
         
     - name: Login to Azure
       uses: azure/login@v1
