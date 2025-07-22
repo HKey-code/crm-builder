@@ -193,7 +193,7 @@ jobs:
         
         # Make start.sh executable
         echo "🔧 Making start.sh executable..."
-        chmod +x deploy-folder/start.sh
+        chmod +x start.sh
         
         # Create zip from deployment folder
         echo "📦 Creating deployment zip..."
