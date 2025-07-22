@@ -1,0 +1,47 @@
+name: Deploy Frontend to Azure Web App
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'apps/frontend/**'
+      - '.github/workflows/frontend-deploy.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'apps/frontend/**'
+      - '.github/workflows/frontend-deploy.yml'
+
+env:
+  AZURE_WEBAPP_NAME: new-smart-crm-frontend-dev-bacrgwh7egdfavfv
+  AZURE_WEBAPP_PACKAGE_PATH: apps/frontend/dist
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: apps/frontend/package-lock.json
+        
+    - name: Install dependencies
+      working-directory: apps/frontend
+      run: npm ci
+      
+    - name: Build application
+      working-directory: apps/frontend
+      run: npm run build
+      
+    - name: Deploy to Azure Web App
+      uses: azure/webapps-deploy@v3
+      with:
+        app-name: ${{ env.AZURE_WEBAPP_NAME }}
+        package: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_FRONTEND }} 
