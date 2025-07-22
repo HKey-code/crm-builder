@@ -36,12 +36,12 @@ async function bootstrap() {
   console.log(`🚀 Healthcheck available at: /health and /healthcheck`);
   
   // Test deployment trigger - Mon Jul 21 01:45:00 CDT 2025
-  const dummyVar = 'workflow-trigger-test-v7';
+  const dummyVar = 'workflow-trigger-test-v8';
   console.log(`🔧 Dummy variable: ${dummyVar}`);
   console.log('✅ Bootstrap completed successfully');
   console.log('🚀 Deployment test - Updated at: ' + new Date().toISOString());
-  console.log('🎯 New deployment triggered - Fixed start.sh and removed deploy-app.yml');
-  console.log('🚀 Clean deployment - No more deploy-app.yml conflicts');
+  console.log('🎯 New deployment triggered - Removed startup.sh references');
+  console.log('🚀 Clean deployment - No more startup script issues');
 }
 bootstrap();
 // Placeholder for main.ts
