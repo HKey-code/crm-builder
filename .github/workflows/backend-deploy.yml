@@ -101,24 +101,14 @@ jobs:
       run: |
         echo "🧹 Cleaning wwwroot for slot '${{ env.AZURE_SLOT }}' via Azure CLI..."
         
+        # Only set the app setting, don't restart
         az webapp config appsettings set \
           --name ${{ env.AZURE_WEBAPP_NAME }} \
           --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
           --slot ${{ env.AZURE_SLOT }} \
           --settings WEBSITE_RUN_FROM_PACKAGE=0
-
-        az webapp restart \
-          --name ${{ env.AZURE_WEBAPP_NAME }} \
-          --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-          --slot ${{ env.AZURE_SLOT }}
         
-        echo "✅ Azure wwwroot cleaned and app restarted"
-
-    - name: Wait for SCM to stabilize after restart
-      run: |
-        echo "⏳ Waiting for Azure SCM container to stabilize after restart..."
-        sleep 20
-        echo "✅ SCM container should be stable now"
+        echo "✅ Azure wwwroot cleaned (no restart to avoid SCM conflicts)"
 
     - name: Create clean deployment structure for Oryx
       run: |
@@ -187,6 +177,13 @@ jobs:
         pkg.scripts.build = 'tsc';
         pkg.scripts.start = 'node main.js';
         pkg.scripts['start:prod'] = 'node main.js';
+        
+        // Move @nestjs/cli to dependencies for production build
+        if (pkg.devDependencies && pkg.devDependencies['@nestjs/cli']) {
+          pkg.dependencies = pkg.dependencies || {};
+          pkg.dependencies['@nestjs/cli'] = pkg.devDependencies['@nestjs/cli'];
+          delete pkg.devDependencies['@nestjs/cli'];
+        }
         
         // Write back the fixed package.json
         fs.writeFileSync('./deploy-root/package.json', JSON.stringify(pkg, null, 2));
