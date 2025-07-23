@@ -180,7 +180,7 @@ jobs:
         pkg.scripts = pkg.scripts || {};
         pkg.scripts.build = 'tsc';
         pkg.scripts.start = 'node main.js';
-        pkg.scripts.start:prod = 'node main.js';
+        pkg.scripts['start:prod'] = 'node main.js';
         
         // Write back the fixed package.json
         fs.writeFileSync('./deploy-root/package.json', JSON.stringify(pkg, null, 2));
