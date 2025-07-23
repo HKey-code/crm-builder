@@ -160,11 +160,9 @@ jobs:
       run: |
         echo "📦 Flattening monorepo structure for Oryx deployment..."
         
-        # Move all files from apps/backend to root (including hidden files)
+        # Move backend source and config to root (excluding dotfiles)
         echo "🔧 Moving apps/backend contents to root..."
-        shopt -s dotglob
-        mv apps/backend/* ./
-        shopt -u dotglob
+        mv apps/backend/* ./ || true
         
         # Clean up only the backend folder
         echo "🧹 Cleaning up apps/backend folder..."
