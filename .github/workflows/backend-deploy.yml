@@ -214,8 +214,7 @@ jobs:
           --slot ${{ env.AZURE_SLOT }} \
           --settings \
           SCM_DO_BUILD_DURING_DEPLOYMENT=true \
-          ENABLE_ORYX_BUILD=true \
-          WEBSITE_RUN_FROM_PACKAGE=1
+          ENABLE_ORYX_BUILD=true
         echo "✅ Azure App Service prepared for Oryx deployment"
 
     # 🟡 7. Wait 45 seconds (Avoid SCM Restart Conflict)
