@@ -92,6 +92,11 @@ jobs:
         kill $APP_PID 2>/dev/null || true
         echo "✅ Production build test completed"
 
+    - name: Login to Azure
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
     - name: Clean Azure wwwroot before deployment
       run: |
         echo "🧹 Cleaning wwwroot for slot '${{ env.AZURE_SLOT }}' via Azure CLI..."
@@ -108,11 +113,6 @@ jobs:
           --slot ${{ env.AZURE_SLOT }}
         
         echo "✅ Azure wwwroot cleaned and app restarted"
-
-    - name: Login to Azure
-      uses: azure/login@v1
-      with:
-        creds: ${{ secrets.AZURE_CREDENTIALS }}
 
     - name: Create clean deployment structure for Oryx
       run: |
