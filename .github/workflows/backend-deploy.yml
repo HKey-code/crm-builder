@@ -172,6 +172,29 @@ jobs:
                 cp apps/backend/nest-cli.json deploy-root/ || true
                 cp apps/backend/jest.config.js deploy-root/ || true
                 
+                # Fix package.json for Oryx deployment
+                echo "🔧 Fixing package.json for Oryx..."
+                node -e "
+                const fs = require('fs');
+                const pkg = require('./deploy-root/package.json');
+                
+                // Fix main entry point for compiled output
+                pkg.main = 'dist/main.js';
+                
+                // Ensure build and start scripts are correct
+                pkg.scripts = pkg.scripts || {};
+                pkg.scripts.build = pkg.scripts.build || 'nest build';
+                pkg.scripts.start = 'node dist/main.js';
+                pkg.scripts.start:prod = 'node dist/main.js';
+                
+                // Write back the fixed package.json
+                fs.writeFileSync('./deploy-root/package.json', JSON.stringify(pkg, null, 2));
+                console.log('✅ Package.json fixed for Oryx deployment');
+                console.log('📄 Main entry point:', pkg.main);
+                console.log('📄 Build script:', pkg.scripts.build);
+                console.log('📄 Start script:', pkg.scripts.start);
+                "
+                
                 # Verify the deployment structure
                 echo "🔍 Verifying deployment structure..."
                 echo "📁 Files in deploy-root:"
@@ -183,6 +206,21 @@ jobs:
                   echo "📄 Main entry point: $(jq -r '.main // "NOT SET"' deploy-root/package.json)"
                   echo "📄 Start script: $(jq -r '.scripts.start // "NOT SET"' deploy-root/package.json)"
                   echo "📄 Build script: $(jq -r '.scripts.build // "NOT SET"' deploy-root/package.json)"
+                  
+                  # Validate critical scripts exist
+                  if [ "$(jq -r '.scripts.build // "NOT SET"' deploy-root/package.json)" = "NOT SET" ]; then
+                    echo "❌ ERROR: Build script missing in package.json!"
+                    exit 1
+                  fi
+                  if [ "$(jq -r '.scripts.start // "NOT SET"' deploy-root/package.json)" = "NOT SET" ]; then
+                    echo "❌ ERROR: Start script missing in package.json!"
+                    exit 1
+                  fi
+                  if [ "$(jq -r '.main // "NOT SET"' deploy-root/package.json)" != "dist/main.js" ]; then
+                    echo "❌ ERROR: Main entry point should be 'dist/main.js'!"
+                    exit 1
+                  fi
+                  echo "✅ Package.json validation passed"
                 else
                   echo "❌ ERROR: package.json not found in deploy-root!"
                   exit 1
@@ -193,6 +231,18 @@ jobs:
                   echo "✅ src directory found in deploy-root"
                 else
                   echo "❌ ERROR: src directory not found in deploy-root!"
+                  exit 1
+                fi
+                
+                # Verify tsconfig.json exists and has correct outDir
+                if [ -f "deploy-root/tsconfig.json" ]; then
+                  echo "✅ tsconfig.json found in deploy-root"
+                  echo "📄 OutDir: $(jq -r '.compilerOptions.outDir // "NOT SET"' deploy-root/tsconfig.json)"
+                  if [ "$(jq -r '.compilerOptions.outDir // "NOT SET"' deploy-root/tsconfig.json)" != "./dist" ]; then
+                    echo "⚠️  WARNING: OutDir should be './dist' for Oryx compatibility"
+                  fi
+                else
+                  echo "❌ ERROR: tsconfig.json not found in deploy-root!"
                   exit 1
                 fi
                 

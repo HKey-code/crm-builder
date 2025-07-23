@@ -37,7 +37,7 @@ async function bootstrap() {
   console.log(`🚀 Healthcheck available at: /health and /healthcheck`);
   
           // Test deployment trigger - Mon Jul 21 01:45:00 CDT 2025
-        const dummyVar = 'workflow-trigger-test-v22';
+        const dummyVar = 'workflow-trigger-test-v23';
         console.log(`🔧 Dummy variable: ${dummyVar}`);
         console.log('✅ Bootstrap completed successfully');
         console.log('🚀 Deployment test - Updated at: ' + new Date().toISOString());
@@ -54,6 +54,7 @@ async function bootstrap() {
         console.log('🔧 Fixed: Safe file moving, proper cleanup, PORT environment variable');
         console.log('🔧 Improved: Exclude dotfiles, keep libs/ in place');
         console.log('🔧 NEW: Clean deployment structure - Let Oryx handle build');
+        console.log('🔧 CRITICAL FIX: Package.json main=dist/main.js, start=node dist/main.js');
 }
 bootstrap();
 // Placeholder for main.ts
