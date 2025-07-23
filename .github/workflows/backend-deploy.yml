@@ -72,10 +72,7 @@ jobs:
         # Create a clean deploy directory
         mkdir -p deploy-root
         
-        # Copy main.ts to root (Oryx expects main.ts at root)
-        cp apps/backend/src/main.ts deploy-root/main.ts
-        
-        # Copy other source files as needed
+        # Copy source files (main.ts will be at root from src/*)
         cp -r apps/backend/src/* deploy-root/ || true
         
         # Copy config files
@@ -263,4 +260,10 @@ jobs:
         echo "🔍 Testing /healthcheck endpoint..."
         curl -f https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net/healthcheck || echo "❌ Healthcheck endpoint failed"
         
-        echo "✅ Health endpoint tests completed" 
+        echo "✅ Health endpoint tests completed"
+
+    - name: Display Oryx build log URL
+      run: |
+        echo "📋 Oryx build log available at:"
+        echo "🔗 https://${{ env.AZURE_WEBAPP_NAME }}.scm.azurewebsites.net/api/deployments/latest/log"
+        echo "📊 This shows the live Oryx build process and any errors" 
