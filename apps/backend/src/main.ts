@@ -37,22 +37,23 @@ async function bootstrap() {
   console.log(`🚀 Healthcheck available at: /health and /healthcheck`);
   
           // Test deployment trigger - Mon Jul 21 01:45:00 CDT 2025
-        const dummyVar = 'workflow-trigger-test-v21';
+        const dummyVar = 'workflow-trigger-test-v22';
         console.log(`🔧 Dummy variable: ${dummyVar}`);
         console.log('✅ Bootstrap completed successfully');
         console.log('🚀 Deployment test - Updated at: ' + new Date().toISOString());
-        console.log('🎯 New deployment triggered - Using flattened Oryx approach');
-        console.log('🚀 Flattened Oryx deployment - Monorepo structure flattened for Oryx');
+        console.log('🎯 New deployment triggered - Using clean Oryx approach');
+        console.log('🚀 Clean Oryx deployment - Source files only, let Oryx build');
         console.log('🔑 Publish profile configured - Ready for deployment');
         console.log('🔧 Port binding fixed for Azure App Service (8080)');
         console.log('🧪 Health check test fixed for port 8080');
         console.log('🔍 Debugging deployment issues - checking environment variables');
         console.log('🚀 Force deployment - Testing port 8080 fix');
-        console.log('📦 Flattened deployment - apps/backend moved to root for Oryx');
-        console.log('📄 Package.json moved to root with all dependencies and correct scripts');
-        console.log('🚀 FORCE DEPLOYMENT - Testing flattened Oryx approach with fixes');
+        console.log('📦 Clean deployment - Only src/ and config files for Oryx');
+        console.log('📄 Package.json with all dependencies and correct scripts');
+        console.log('🚀 FORCE DEPLOYMENT - Testing clean Oryx approach with fixes');
         console.log('🔧 Fixed: Safe file moving, proper cleanup, PORT environment variable');
         console.log('🔧 Improved: Exclude dotfiles, keep libs/ in place');
+        console.log('🔧 NEW: Clean deployment structure - Let Oryx handle build');
 }
 bootstrap();
 // Placeholder for main.ts
