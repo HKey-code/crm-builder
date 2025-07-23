@@ -37,7 +37,7 @@ async function bootstrap() {
   console.log(`🚀 Healthcheck available at: /health and /healthcheck`);
   
           // Test deployment trigger - Mon Jul 21 01:45:00 CDT 2025
-        const dummyVar = 'workflow-trigger-test-v27';
+        const dummyVar = 'workflow-trigger-test-v28';
         console.log(`🔧 Dummy variable: ${dummyVar}`);
         console.log('✅ Bootstrap completed successfully');
         console.log('🚀 Deployment test - Updated at: ' + new Date().toISOString());
@@ -58,6 +58,7 @@ async function bootstrap() {
         console.log('🔧 FLAT STRUCTURE: Oryx expects main.ts -> main.js at root');
         console.log('🔧 FIXED: Azure login before cleanup operations');
         console.log('🔧 FIXED: JavaScript syntax error in package.json modification');
+        console.log('🔧 FIXED: SCM container restart delay - 20 second wait');
 }
 bootstrap();
 // Placeholder for main.ts

@@ -114,6 +114,12 @@ jobs:
         
         echo "✅ Azure wwwroot cleaned and app restarted"
 
+    - name: Wait for SCM to stabilize after restart
+      run: |
+        echo "⏳ Waiting for Azure SCM container to stabilize after restart..."
+        sleep 20
+        echo "✅ SCM container should be stable now"
+
     - name: Create clean deployment structure for Oryx
       run: |
         echo "📦 Creating clean deployment structure for Oryx..."
