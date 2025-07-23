@@ -225,12 +225,22 @@ jobs:
         sleep 45
         echo "✅ Wait complete - SCM container should be ready for deployment"
 
+    # 🟢 7.5 ZIP deploy-root
+    - name: ZIP deploy-root
+      run: |
+        echo "📦 Creating deploy.zip from deploy-root..."
+        cd deploy-root
+        zip -r ../deploy.zip .
+        echo "✅ deploy.zip created"
+        echo "📁 Contents of deploy.zip:"
+        unzip -l ../deploy.zip | head -20
+
     # 🔴 8. Deploy with azure/webapps-deploy@v3
     - name: Deploy to Azure Web App
       uses: azure/webapps-deploy@v3
       with:
         app-name: ${{ env.AZURE_WEBAPP_NAME }}
-        package: ./deploy-root
+        package: ./deploy.zip
         publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_BACKEND }}
 
     # 🟢 9. Restart App Service
