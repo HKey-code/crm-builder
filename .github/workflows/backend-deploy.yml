@@ -198,6 +198,31 @@ jobs:
         
         echo "✅ Clean deployment structure created successfully for Oryx"
 
+    # 🟢 4.5 Generate Prisma client in deploy-root
+    - name: Generate Prisma client in deploy-root
+      run: |
+        echo "🔧 Generating Prisma client in deploy-root..."
+        cd deploy-root
+        
+        # Install dependencies in deploy-root
+        echo "📦 Installing dependencies in deploy-root..."
+        npm ci
+        
+        # Generate Prisma client
+        echo "🔧 Running Prisma generate..."
+        npm run prisma:generate
+        
+        echo "✅ Prisma client generated successfully in deploy-root"
+        
+        # Verify Prisma client exists
+        echo "🔍 Verifying Prisma client..."
+        if [ -d "node_modules/.prisma/client" ]; then
+          echo "✅ Prisma client found in node_modules/.prisma/client"
+        else
+          echo "❌ ERROR: Prisma client not found!"
+          exit 1
+        fi
+
     # 🟡 5. Login to Azure
     - name: Login to Azure
       uses: azure/login@v1
