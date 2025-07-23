@@ -109,7 +109,13 @@ jobs:
           --settings WEBSITE_RUN_FROM_PACKAGE=0
         
         echo "✅ Azure wwwroot cleaned (no restart to avoid SCM conflicts)"
-
+    
+    - name: Wait for app service to fully settle
+      run: |
+        echo "⏳ Waiting 30 seconds for app service to settle after config change..."
+        sleep 30
+        echo "✅ Wait complete - SCM container should be ready for deployment"
+    
     - name: Create clean deployment structure for Oryx
       run: |
         echo "📦 Creating clean deployment structure for Oryx..."
