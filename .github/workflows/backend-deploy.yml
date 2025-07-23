@@ -204,9 +204,14 @@ jobs:
         echo "🔧 Generating Prisma client in deploy-root..."
         cd deploy-root
         
-        # Install dependencies in deploy-root
-        echo "📦 Installing dependencies in deploy-root..."
-        npm ci
+        # Copy Prisma schema if it exists
+        echo "📄 Copying Prisma schema..."
+        mkdir -p prisma
+        cp ../../libs/schema-engine/prisma/schema.prisma prisma/schema.prisma || echo "⚠️  Prisma schema not found, using package.json config"
+        
+        # Install dependencies in deploy-root (prod-only)
+        echo "📦 Installing dependencies in deploy-root (prod-only)..."
+        npm install --omit=dev
         
         # Generate Prisma client
         echo "🔧 Running Prisma generate..."
