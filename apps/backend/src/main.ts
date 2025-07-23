@@ -37,20 +37,20 @@ async function bootstrap() {
   console.log(`🚀 Healthcheck available at: /health and /healthcheck`);
   
           // Test deployment trigger - Mon Jul 21 01:45:00 CDT 2025
-        const dummyVar = 'workflow-trigger-test-v18';
+        const dummyVar = 'workflow-trigger-test-v19';
         console.log(`🔧 Dummy variable: ${dummyVar}`);
         console.log('✅ Bootstrap completed successfully');
         console.log('🚀 Deployment test - Updated at: ' + new Date().toISOString());
-        console.log('🎯 New deployment triggered - Using clean Oryx approach');
-        console.log('🚀 Clean Oryx deployment - Let Azure handle dependencies properly');
+        console.log('🎯 New deployment triggered - Using flattened Oryx approach');
+        console.log('🚀 Flattened Oryx deployment - Monorepo structure flattened for Oryx');
         console.log('🔑 Publish profile configured - Ready for deployment');
         console.log('🔧 Port binding fixed for Azure App Service (8080)');
         console.log('🧪 Health check test fixed for port 8080');
         console.log('🔍 Debugging deployment issues - checking environment variables');
         console.log('🚀 Force deployment - Testing port 8080 fix');
-        console.log('📦 Clean deployment - No node_modules in zip, let Oryx install');
-        console.log('📄 Package.json updated with all dependencies and correct scripts');
-        console.log('🚀 FORCE DEPLOYMENT - Testing clean Oryx approach with complete dependencies');
+        console.log('📦 Flattened deployment - apps/backend moved to root for Oryx');
+        console.log('📄 Package.json moved to root with all dependencies and correct scripts');
+        console.log('🚀 FORCE DEPLOYMENT - Testing flattened Oryx approach');
 }
 bootstrap();
 // Placeholder for main.ts

@@ -156,59 +156,43 @@ jobs:
         kill $APP_PID 2>/dev/null || true
         echo "✅ Production build test completed"
         
-    - name: Prepare deployment package (Clean Oryx approach)
+    - name: Flatten monorepo structure for Oryx deployment
       run: |
-        echo "📦 Preparing clean deployment package for Oryx..."
+        echo "📦 Flattening monorepo structure for Oryx deployment..."
         
-        # Create a clean deployment directory
-        mkdir -p deploy-folder
+        # Move all files from apps/backend to root (including hidden files)
+        echo "🔧 Moving apps/backend contents to root..."
+        cp -r apps/backend/* . 2>/dev/null || true
+        cp -r apps/backend/.* . 2>/dev/null || true
         
-        # Copy built files to deployment folder
-        echo "🔧 Copying compiled application files..."
-        cp -r apps/backend/dist/* deploy-folder/
+        # Clean up the apps/ folder
+        echo "🧹 Cleaning up apps/ folder..."
+        rm -rf apps/
         
-        # Copy complete package.json (with all dependencies)
-        echo "📄 Copying complete package.json with dependencies..."
-        cp apps/backend/package.json deploy-folder/
-        
-        # Copy package-lock.json for consistent dependency resolution
-        echo "🔒 Copying package-lock.json for consistent installs..."
-        cp package-lock.json deploy-folder/
-        
-        # Verify package.json is ready for production
-        echo "🔧 Verifying package.json for production..."
-        cd deploy-folder
-        
-        # Check that package.json has correct main and start scripts
-        node -e "
-          const pkg = require('./package.json');
-          console.log('✅ Package.json verification:');
-          console.log('   - main: ' + (pkg.main || 'NOT SET'));
-          console.log('   - start script: ' + (pkg.scripts?.start || 'NOT SET'));
-          console.log('   - start:prod script: ' + (pkg.scripts?.['start:prod'] || 'NOT SET'));
-          console.log('📦 Dependencies to be installed by Oryx:');
-          Object.keys(pkg.dependencies || {}).forEach(dep => console.log('   - ' + dep));
-          console.log('📊 Total dependencies: ' + Object.keys(pkg.dependencies || {}).length);
-        "
-        
-        # Verify final deployment structure
-        echo "🔍 Verifying clean deployment structure..."
-        echo "📁 Files in deployment folder:"
+        # Verify the flattened structure
+        echo "🔍 Verifying flattened structure..."
+        echo "📁 Files at root level:"
         ls -la
-        echo "📄 Package.json scripts:"
-        cat package.json | grep -E "(main|start|scripts)" || echo "⚠️  No start script found"
-        echo "📦 Dependencies count: $(jq '.dependencies | length' package.json || echo '0')"
+        echo "📄 Package.json at root:"
+        if [ -f "package.json" ]; then
+          echo "✅ package.json found at root"
+          echo "📦 Dependencies count: $(jq '.dependencies | length' package.json || echo '0')"
+          echo "📄 Main entry point: $(jq -r '.main // "NOT SET"' package.json)"
+          echo "📄 Start script: $(jq -r '.scripts.start // "NOT SET"' package.json)"
+        else
+          echo "❌ ERROR: package.json not found at root!"
+          exit 1
+        fi
         
-        # Create clean zip (no node_modules, no source files)
-        echo "📦 Creating clean deployment zip..."
-        zip -r ../release.zip . -x ".*" -x "__pycache__/*" -x "node_modules/*" -x "*.ts" -x "src/*"
+        # Verify main.js exists
+        if [ -f "main.js" ]; then
+          echo "✅ main.js found at root"
+        else
+          echo "❌ ERROR: main.js not found at root!"
+          exit 1
+        fi
         
-        echo "🔍 Verifying zip contents..."
-        unzip -l ../release.zip | head -20
-        
-        echo "✅ Clean deployment package created successfully"
-        echo "📊 Package size: $(du -h ../release.zip | cut -f1)"
-        echo "🎯 Oryx will install dependencies and handle runtime setup"
+        echo "✅ Monorepo structure flattened successfully for Oryx"
         
     - name: Login to Azure
       uses: azure/login@v1
@@ -232,16 +216,16 @@ jobs:
         
         echo "✅ Azure App Service prepared for Oryx deployment"
         
-    - name: Deploy to Azure Web App (Clean Oryx deployment)
+    - name: Deploy to Azure Web App (Flattened Oryx deployment)
       uses: azure/webapps-deploy@v3
       with:
         app-name: ${{ env.AZURE_WEBAPP_NAME }}
-        package: release.zip
+        package: .
         publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_BACKEND }}
         
-    - name: Configure Azure App Service for Clean Oryx Deployment
+    - name: Configure Azure App Service for Flattened Oryx Deployment
       run: |
-        echo "🔧 Configuring Azure App Service for clean Oryx deployment..."
+        echo "🔧 Configuring Azure App Service for flattened Oryx deployment..."
         
         # Enable Oryx build system (default behavior)
         echo "✅ Enabling Oryx build system..."
@@ -262,7 +246,7 @@ jobs:
           --slot ${{ env.AZURE_SLOT }} \
           --startup-file "npm start"
         
-        echo "✅ Azure App Service configured for clean Oryx deployment"
+        echo "✅ Azure App Service configured for flattened Oryx deployment"
         
     - name: Configure Azure App Service Environment Variables
       run: |
