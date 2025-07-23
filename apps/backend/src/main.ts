@@ -37,7 +37,7 @@ async function bootstrap() {
   console.log(`🚀 Healthcheck available at: /health and /healthcheck`);
   
           // Test deployment trigger - Mon Jul 21 01:45:00 CDT 2025
-        const dummyVar = 'workflow-trigger-test-v29';
+        const dummyVar = 'workflow-trigger-test-v30';
         console.log(`🔧 Dummy variable: ${dummyVar}`);
         console.log('✅ Bootstrap completed successfully');
         console.log('🚀 Deployment test - Updated at: ' + new Date().toISOString());
@@ -61,6 +61,7 @@ async function bootstrap() {
         console.log('🔧 FIXED: SCM container restart delay - 20 second wait');
         console.log('🔧 FIXED: Remove restart command to avoid SCM conflicts');
         console.log('🔧 FIXED: Move @nestjs/cli to dependencies for production');
+        console.log('🚀 FORCE DEPLOYMENT TRIGGER - Testing all fixes');
 }
 bootstrap();
 // Placeholder for main.ts
