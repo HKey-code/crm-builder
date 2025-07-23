@@ -37,24 +37,25 @@ async function bootstrap() {
   console.log(`🚀 Healthcheck available at: /health and /healthcheck`);
   
           // Test deployment trigger - Mon Jul 21 01:45:00 CDT 2025
-        const dummyVar = 'workflow-trigger-test-v23';
+        const dummyVar = 'workflow-trigger-test-v25';
         console.log(`🔧 Dummy variable: ${dummyVar}`);
         console.log('✅ Bootstrap completed successfully');
         console.log('🚀 Deployment test - Updated at: ' + new Date().toISOString());
-        console.log('🎯 New deployment triggered - Using clean Oryx approach');
-        console.log('🚀 Clean Oryx deployment - Source files only, let Oryx build');
+        console.log('🎯 New deployment triggered - Using flat Oryx structure');
+        console.log('🚀 Flat Oryx deployment - main.ts at root, compiled to main.js');
         console.log('🔑 Publish profile configured - Ready for deployment');
         console.log('🔧 Port binding fixed for Azure App Service (8080)');
         console.log('🧪 Health check test fixed for port 8080');
-        console.log('🔍 Debugging deployment issues - checking environment variables');
-        console.log('🚀 Force deployment - Testing port 8080 fix');
-        console.log('📦 Clean deployment - Only src/ and config files for Oryx');
-        console.log('📄 Package.json with all dependencies and correct scripts');
-        console.log('🚀 FORCE DEPLOYMENT - Testing clean Oryx approach with fixes');
+        console.log('🔍 Enhanced logging and validation throughout workflow');
+        console.log('🚀 Force deployment - Testing flat Oryx approach');
+        console.log('📦 Flat deployment - main.ts at root, tsc compiles to main.js');
+        console.log('📄 Package.json with main=main.js, start=node main.js');
+        console.log('🚀 FORCE DEPLOYMENT - Testing flat Oryx structure');
         console.log('🔧 Fixed: Safe file moving, proper cleanup, PORT environment variable');
         console.log('🔧 Improved: Exclude dotfiles, keep libs/ in place');
-        console.log('🔧 NEW: Clean deployment structure - Let Oryx handle build');
-        console.log('🔧 CRITICAL FIX: Package.json main=dist/main.js, start=node dist/main.js');
+        console.log('🔧 NEW: Flat Oryx structure - main.ts at root');
+        console.log('🔧 CRITICAL FIX: Package.json main=main.js, start=node main.js');
+        console.log('🔧 FLAT STRUCTURE: Oryx expects main.ts -> main.js at root');
 }
 bootstrap();
 // Placeholder for main.ts

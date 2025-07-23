@@ -31,254 +31,218 @@ env:
   AZURE_SLOT: dev
   NODE_VERSION: '22'
   NODE_ENV: 'production'
+  FRONTEND_URL: 'https://new-smart-crm-frontend-dev-bacrgwh7egdfavfv.centralus-01.azurewebsites.net'
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     environment: dev
-    
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-      
+      with:
+        fetch-depth: 0
+
     - name: Set up Node.js
       uses: actions/setup-node@v4
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: 'npm'
         cache-dependency-path: '**/package-lock.json'
-        
-    - name: Debug environment variables
-      env:
-        DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        JWT_SECRET: ${{ secrets.JWT_SECRET }}
+
+    - name: Install dependencies
       run: |
-        echo "🔍 Debugging environment variables..."
-        echo "DATABASE_URL is ${DATABASE_URL:+SET}"
-        echo "JWT_SECRET is ${JWT_SECRET:+SET}"
-        echo "Database URL protocol: ${DATABASE_URL%%:*}"
-        echo "Database URL length: ${#DATABASE_URL}"
-        echo "JWT_SECRET length: ${#JWT_SECRET}"
-        echo "NODE_ENV: ${{ env.NODE_ENV }}"
-        echo "✅ Environment variables check completed"
-        
-    - name: Install monorepo dependencies
-      env:
-        DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        JWT_SECRET: ${{ secrets.JWT_SECRET }}
-        NODE_ENV: production
-      run: |
-        echo "🔨 Setting up Node.js environment..."
-        node --version
-        npm --version
-        
-        echo "📦 Installing monorepo dependencies from root..."
+        echo "📦 Installing dependencies..."
         npm ci
-        
-        # Validate Prisma schema exists
-        echo "🔍 Validating Prisma schema file..."
-        test -f libs/schema-engine/prisma/schema.prisma || (echo "❌ Prisma schema not found!" && exit 1)
-        echo "✅ Prisma schema found"
-        
+        echo "✅ Dependencies installed"
+
     - name: Generate Prisma client
       env:
         DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        JWT_SECRET: ${{ secrets.JWT_SECRET }}
-        NODE_ENV: production
       run: |
         echo "🔧 Generating Prisma client..."
+        echo "📄 Schema path: libs/schema-engine/prisma/schema.prisma"
         npx prisma generate --schema=libs/schema-engine/prisma/schema.prisma
-        echo "✅ Prisma client generated"
-        
-    - name: Build backend application
+        echo "✅ Prisma client generated successfully"
+
+    - name: Test production build locally
       working-directory: apps/backend
       env:
         DATABASE_URL: ${{ secrets.DATABASE_URL }}
         JWT_SECRET: ${{ secrets.JWT_SECRET }}
         NODE_ENV: production
+        PORT: 8080
       run: |
-        echo "🔨 Building backend application..."
+        echo "🧪 Testing production build locally..."
         npm run build
+        echo "✅ Build completed successfully"
         
-        # Verify main.js exists
-        if [ ! -f "dist/main.js" ]; then
-          echo "❌ ERROR: dist/main.js not found!"
-          ls -la dist/ || echo "dist/ directory not found!"
-          exit 1
-        fi
-        
-        echo "✅ dist/main.js found"
-        ls -la dist/
-        
-        # Return to monorepo root for verification
-        cd ../..
-        
-        echo "🔍 Verifying build artifacts in monorepo structure..."
-        echo "📋 Backend dist contents:"
-        ls -la apps/backend/dist/
-        
-        echo "🔍 Verifying main.js exists:"
-        if [ -f "apps/backend/dist/main.js" ]; then
-          echo "✅ apps/backend/dist/main.js exists"
-          echo "📄 File size: $(wc -c < apps/backend/dist/main.js) bytes"
-        else
-          echo "❌ ERROR: apps/backend/dist/main.js missing!"
-          exit 1
-        fi
-        
-        echo "✅ Backend build completed successfully"
-        
-    - name: Test production build
-      working-directory: apps/backend
-      env:
-        DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        JWT_SECRET: ${{ secrets.JWT_SECRET }}
-        NODE_ENV: production
-      run: |
-        echo "🧪 Testing production build..."
-        
-        # Start the app in background
+        # Test the built application
+        echo "🧪 Testing built application..."
         timeout 10s node dist/main.js &
         APP_PID=$!
-        
-        # Wait for app to start
         sleep 5
-        
-        # Test healthcheck endpoint
         if curl -f http://localhost:8080/health > /dev/null 2>&1; then
           echo "✅ Healthcheck endpoint working"
         else
           echo "❌ Healthcheck endpoint failed"
           exit 1
         fi
-        
-        # Kill the app
         kill $APP_PID 2>/dev/null || true
         echo "✅ Production build test completed"
-        
-                - name: Create clean deployment structure for Oryx
-              run: |
-                echo "📦 Creating clean deployment structure for Oryx..."
-                
-                # Create a clean deploy directory
-                mkdir -p deploy-root
-                
-                # Copy only the necessary backend app files (source + config)
-                echo "🔧 Copying source files and config..."
-                cp -r apps/backend/src deploy-root/
-                cp apps/backend/package.json deploy-root/
-                cp apps/backend/package-lock.json deploy-root/ || true
-                cp apps/backend/tsconfig.json deploy-root/ || true
-                cp apps/backend/nest-cli.json deploy-root/ || true
-                cp apps/backend/jest.config.js deploy-root/ || true
-                
-                # Fix package.json for Oryx deployment
-                echo "🔧 Fixing package.json for Oryx..."
-                node -e "
-                const fs = require('fs');
-                const pkg = require('./deploy-root/package.json');
-                
-                // Fix main entry point for compiled output
-                pkg.main = 'dist/main.js';
-                
-                // Ensure build and start scripts are correct
-                pkg.scripts = pkg.scripts || {};
-                pkg.scripts.build = pkg.scripts.build || 'nest build';
-                pkg.scripts.start = 'node dist/main.js';
-                pkg.scripts.start:prod = 'node dist/main.js';
-                
-                // Write back the fixed package.json
-                fs.writeFileSync('./deploy-root/package.json', JSON.stringify(pkg, null, 2));
-                console.log('✅ Package.json fixed for Oryx deployment');
-                console.log('📄 Main entry point:', pkg.main);
-                console.log('📄 Build script:', pkg.scripts.build);
-                console.log('📄 Start script:', pkg.scripts.start);
-                "
-                
-                # Verify the deployment structure
-                echo "🔍 Verifying deployment structure..."
-                echo "📁 Files in deploy-root:"
-                ls -la deploy-root/
-                echo "📄 Package.json in deploy-root:"
-                if [ -f "deploy-root/package.json" ]; then
-                  echo "✅ package.json found in deploy-root"
-                  echo "📦 Dependencies count: $(jq '.dependencies | length' deploy-root/package.json || echo '0')"
-                  echo "📄 Main entry point: $(jq -r '.main // "NOT SET"' deploy-root/package.json)"
-                  echo "📄 Start script: $(jq -r '.scripts.start // "NOT SET"' deploy-root/package.json)"
-                  echo "📄 Build script: $(jq -r '.scripts.build // "NOT SET"' deploy-root/package.json)"
-                  
-                  # Validate critical scripts exist
-                  if [ "$(jq -r '.scripts.build // "NOT SET"' deploy-root/package.json)" = "NOT SET" ]; then
-                    echo "❌ ERROR: Build script missing in package.json!"
-                    exit 1
-                  fi
-                  if [ "$(jq -r '.scripts.start // "NOT SET"' deploy-root/package.json)" = "NOT SET" ]; then
-                    echo "❌ ERROR: Start script missing in package.json!"
-                    exit 1
-                  fi
-                  if [ "$(jq -r '.main // "NOT SET"' deploy-root/package.json)" != "dist/main.js" ]; then
-                    echo "❌ ERROR: Main entry point should be 'dist/main.js'!"
-                    exit 1
-                  fi
-                  echo "✅ Package.json validation passed"
-                else
-                  echo "❌ ERROR: package.json not found in deploy-root!"
-                  exit 1
-                fi
-                
-                # Verify src directory exists
-                if [ -d "deploy-root/src" ]; then
-                  echo "✅ src directory found in deploy-root"
-                else
-                  echo "❌ ERROR: src directory not found in deploy-root!"
-                  exit 1
-                fi
-                
-                # Verify tsconfig.json exists and has correct outDir
-                if [ -f "deploy-root/tsconfig.json" ]; then
-                  echo "✅ tsconfig.json found in deploy-root"
-                  echo "📄 OutDir: $(jq -r '.compilerOptions.outDir // "NOT SET"' deploy-root/tsconfig.json)"
-                  if [ "$(jq -r '.compilerOptions.outDir // "NOT SET"' deploy-root/tsconfig.json)" != "./dist" ]; then
-                    echo "⚠️  WARNING: OutDir should be './dist' for Oryx compatibility"
-                  fi
-                else
-                  echo "❌ ERROR: tsconfig.json not found in deploy-root!"
-                  exit 1
-                fi
-                
-                echo "✅ Clean deployment structure created successfully for Oryx"
-        
-    - name: Login to Azure
-      uses: azure/login@v1
-      with:
-        creds: ${{ secrets.AZURE_CREDENTIALS }}
-        
-    - name: Prepare Azure App Service for Oryx Deployment
+
+    - name: Clean Azure wwwroot before deployment
       run: |
-        echo "🔧 Preparing Azure App Service for Oryx deployment..."
+        echo "🧹 Cleaning wwwroot for slot '${{ env.AZURE_SLOT }}' via Azure CLI..."
         
-        # Enable Oryx build system and run from package
-        echo "✅ Enabling Oryx build system..."
         az webapp config appsettings set \
           --name ${{ env.AZURE_WEBAPP_NAME }} \
           --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
           --slot ${{ env.AZURE_SLOT }} \
-          --settings \
-          SCM_DO_BUILD_DURING_DEPLOYMENT=true \
-          ENABLE_ORYX_BUILD=true \
-          WEBSITE_RUN_FROM_PACKAGE=1
-        
-        echo "✅ Azure App Service prepared for Oryx deployment"
-        
-                - name: Deploy to Azure Web App (Clean Oryx deployment)
-              uses: azure/webapps-deploy@v3
-              with:
-                app-name: ${{ env.AZURE_WEBAPP_NAME }}
-                package: ./deploy-root
-                publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_BACKEND }}
-        
+          --settings WEBSITE_RUN_FROM_PACKAGE=0
 
+        az webapp restart \
+          --name ${{ env.AZURE_WEBAPP_NAME }} \
+          --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+          --slot ${{ env.AZURE_SLOT }}
         
+        echo "✅ Azure wwwroot cleaned and app restarted"
+
+    - name: Login to Azure
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Create clean deployment structure for Oryx
+      run: |
+        echo "📦 Creating clean deployment structure for Oryx..."
+        
+        # Create a clean deploy directory
+        mkdir -p deploy-root
+        
+        # Create flat Oryx-compatible structure
+        echo "🔧 Creating flat Oryx-compatible structure..."
+        
+        # Copy main.ts to root (Oryx expects main.ts at root)
+        cp apps/backend/src/main.ts deploy-root/main.ts
+        
+        # Copy other source files as needed
+        cp -r apps/backend/src/* deploy-root/ || true
+        
+        # Copy config files
+        cp apps/backend/package.json deploy-root/
+        cp apps/backend/package-lock.json deploy-root/ || true
+        cp apps/backend/nest-cli.json deploy-root/ || true
+        cp apps/backend/jest.config.js deploy-root/ || true
+        
+        # Create Oryx-compatible tsconfig.json
+        echo "🔧 Creating Oryx-compatible tsconfig.json..."
+        echo '{
+          "compilerOptions": {
+            "module": "CommonJS",
+            "target": "ES2021",
+            "lib": ["ES2021"],
+            "moduleResolution": "node",
+            "resolveJsonModule": true,
+            "esModuleInterop": true,
+            "experimentalDecorators": true,
+            "emitDecoratorMetadata": true,
+            "skipLibCheck": true,
+            "strict": true,
+            "forceConsistentCasingInFileNames": true,
+            "outDir": ".",
+            "rootDir": "."
+          },
+          "include": [
+            "*.ts",
+            "**/*.ts"
+          ],
+          "exclude": [
+            "node_modules",
+            "dist",
+            "**/*.spec.ts",
+            "**/*.e2e-spec.ts",
+            "**/__tests__/**"
+          ]
+        }' > deploy-root/tsconfig.json
+        
+        # Fix package.json for flat Oryx structure
+        echo "🔧 Fixing package.json for flat Oryx structure..."
+        node -e "
+        const fs = require('fs');
+        const pkg = require('./deploy-root/package.json');
+        
+        // Flat structure: main.ts -> main.js at root
+        pkg.main = 'main.js';
+        
+        // Ensure build and start scripts are correct for flat structure
+        pkg.scripts = pkg.scripts || {};
+        pkg.scripts.build = 'tsc';
+        pkg.scripts.start = 'node main.js';
+        pkg.scripts.start:prod = 'node main.js';
+        
+        // Write back the fixed package.json
+        fs.writeFileSync('./deploy-root/package.json', JSON.stringify(pkg, null, 2));
+        console.log('✅ Package.json fixed for flat Oryx structure');
+        console.log('📄 Main entry point:', pkg.main);
+        console.log('📄 Build script:', pkg.scripts.build);
+        console.log('📄 Start script:', pkg.scripts.start);
+        "
+        
+        # Verify the deployment structure
+        echo "🔍 Verifying deployment structure..."
+        echo "📁 Files in deploy-root:"
+        ls -la deploy-root/
+        echo "📄 Package.json in deploy-root:"
+        if [ -f "deploy-root/package.json" ]; then
+          echo "✅ package.json found in deploy-root"
+          echo "📦 Dependencies count: $(jq '.dependencies | length' deploy-root/package.json || echo '0')"
+          echo "📄 Main entry point: $(jq -r '.main // "NOT SET"' deploy-root/package.json)"
+          echo "📄 Start script: $(jq -r '.scripts.start // "NOT SET"' deploy-root/package.json)"
+          echo "📄 Build script: $(jq -r '.scripts.build // "NOT SET"' deploy-root/package.json)"
+          
+          # Validate critical scripts exist
+          if [ "$(jq -r '.scripts.build // "NOT SET"' deploy-root/package.json)" = "NOT SET" ]; then
+            echo "❌ ERROR: Build script missing in package.json!"
+            exit 1
+          fi
+          if [ "$(jq -r '.scripts.start // "NOT SET"' deploy-root/package.json)" = "NOT SET" ]; then
+            echo "❌ ERROR: Start script missing in package.json!"
+            exit 1
+          fi
+          if [ "$(jq -r '.main // "NOT SET"' deploy-root/package.json)" != "main.js" ]; then
+            echo "❌ ERROR: Main entry point should be 'main.js' for flat structure!"
+            exit 1
+          fi
+          echo "✅ Package.json validation passed"
+        else
+          echo "❌ ERROR: package.json not found in deploy-root!"
+          exit 1
+        fi
+        
+        # Verify main.ts exists at root (flat structure)
+        if [ -f "deploy-root/main.ts" ]; then
+          echo "✅ main.ts found at root (flat structure)"
+        else
+          echo "❌ ERROR: main.ts not found at root!"
+          exit 1
+        fi
+        
+        # Verify tsconfig.json exists and has correct outDir for flat structure
+        if [ -f "deploy-root/tsconfig.json" ]; then
+          echo "✅ tsconfig.json found in deploy-root"
+          echo "📄 OutDir: $(jq -r '.compilerOptions.outDir // "NOT SET"' deploy-root/tsconfig.json)"
+          if [ "$(jq -r '.compilerOptions.outDir // "NOT SET"' deploy-root/tsconfig.json)" != "." ]; then
+            echo "⚠️  WARNING: OutDir should be '.' for flat Oryx structure"
+          fi
+        else
+          echo "❌ ERROR: tsconfig.json not found in deploy-root!"
+          exit 1
+        fi
+        
+        echo "✅ Clean deployment structure created successfully for Oryx"
+
     - name: Configure Azure App Service Environment Variables
       run: |
         echo "🔧 Configuring Azure App Service environment variables..."
@@ -291,13 +255,56 @@ jobs:
           DATABASE_URL="${{ secrets.DATABASE_URL }}" \
           JWT_SECRET="${{ secrets.JWT_SECRET }}" \
           NODE_ENV=production \
-          PORT=8080
+          PORT=8080 \
+          FRONTEND_URL="${{ env.FRONTEND_URL }}"
         
         echo "✅ Environment variables configured successfully"
+
+    - name: Configure Azure App Service for Oryx Build
+      run: |
+        echo "🔧 Configuring Azure App Service for Oryx build..."
         
+        az webapp config appsettings set \
+          --name ${{ env.AZURE_WEBAPP_NAME }} \
+          --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+          --slot ${{ env.AZURE_SLOT }} \
+          --settings \
+          SCM_DO_BUILD_DURING_DEPLOYMENT=true \
+          ENABLE_ORYX_BUILD=true \
+          WEBSITE_RUN_FROM_PACKAGE=1
+        
+        echo "✅ Azure App Service prepared for Oryx deployment"
+
+    - name: Deploy to Azure Web App (Clean Oryx deployment)
+      uses: azure/webapps-deploy@v3
+      with:
+        app-name: ${{ env.AZURE_WEBAPP_NAME }}
+        package: ./deploy-root
+        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_BACKEND }}
+
+    - name: Wait for deployment to complete
+      run: |
+        echo "⏳ Waiting for deployment to complete..."
+        sleep 30
+        echo "✅ Deployment wait completed"
+
+    - name: Restart Azure App Service
+      run: |
+        echo "🔄 Restarting Azure App Service..."
+        az webapp restart \
+          --name ${{ env.AZURE_WEBAPP_NAME }} \
+          --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+          --slot ${{ env.AZURE_SLOT }}
+        echo "✅ Azure App Service restarted"
+
     - name: Verify deployment
       run: |
-        echo "🔍 Verifying backend deployment..."
-        echo "App Service: ${{ env.AZURE_WEBAPP_NAME }}"
-        echo "Environment: ${{ github.event.inputs.environment || 'dev' }}"
-        echo "✅ Backend deployment completed successfully" 
+        echo "🔍 Verifying deployment..."
+        echo "🌐 App URL: https://${{ env.AZURE_WEBAPP_NAME }}-${{ env.AZURE_SLOT }}.azurewebsites.net"
+        echo "🔧 Environment: ${{ env.NODE_ENV }}"
+        echo "📦 Node version: ${{ env.NODE_VERSION }}"
+        echo "🎯 Port: 8080"
+        echo "✅ Backend deployment complete"
+        echo "🌐 App: ${{ env.AZURE_WEBAPP_NAME }}"
+        echo "📋 Resource Group: ${{ env.AZURE_RESOURCE_GROUP }}"
+        echo "🎛️  Slot: ${{ env.AZURE_SLOT }}" 
