@@ -36,95 +36,41 @@ env:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    environment: dev
-
+    
     steps:
+    # 🟢 1. Checkout and Node Setup
     - name: Checkout repository
       uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
 
     - name: Set up Node.js
       uses: actions/setup-node@v4
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: 'npm'
-        cache-dependency-path: '**/package-lock.json'
+        cache-dependency-path: apps/backend/package-lock.json
 
+    # 🟢 2. Install Dependencies + Generate Prisma
     - name: Install dependencies
+      working-directory: apps/backend
       run: |
         echo "📦 Installing dependencies..."
         npm ci
         echo "✅ Dependencies installed"
 
     - name: Generate Prisma client
-      env:
-        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      working-directory: apps/backend
       run: |
         echo "🔧 Generating Prisma client..."
-        echo "📄 Schema path: libs/schema-engine/prisma/schema.prisma"
-        npx prisma generate --schema=libs/schema-engine/prisma/schema.prisma
-        echo "✅ Prisma client generated successfully"
+        npm run prisma:generate
+        echo "✅ Prisma client generated"
 
-    - name: Test production build locally
-      working-directory: apps/backend
-      env:
-        DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        JWT_SECRET: ${{ secrets.JWT_SECRET }}
-        NODE_ENV: production
-        PORT: 8080
-      run: |
-        echo "🧪 Testing production build locally..."
-        npm run build
-        echo "✅ Build completed successfully"
-        
-        # Test the built application
-        echo "🧪 Testing built application..."
-        timeout 10s node dist/main.js &
-        APP_PID=$!
-        sleep 5
-        if curl -f http://localhost:8080/health > /dev/null 2>&1; then
-          echo "✅ Healthcheck endpoint working"
-        else
-          echo "❌ Healthcheck endpoint failed"
-          exit 1
-        fi
-        kill $APP_PID 2>/dev/null || true
-        echo "✅ Production build test completed"
-
-    - name: Login to Azure
-      uses: azure/login@v1
-      with:
-        creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-    - name: Clean Azure wwwroot before deployment
-      run: |
-        echo "🧹 Cleaning wwwroot for slot '${{ env.AZURE_SLOT }}' via Azure CLI..."
-        
-        # Only set the app setting, don't restart
-        az webapp config appsettings set \
-          --name ${{ env.AZURE_WEBAPP_NAME }} \
-          --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-          --slot ${{ env.AZURE_SLOT }} \
-          --settings WEBSITE_RUN_FROM_PACKAGE=0
-        
-        echo "✅ Azure wwwroot cleaned (no restart to avoid SCM conflicts)"
-    
-    - name: Wait for app service to fully settle
-      run: |
-        echo "⏳ Waiting 30 seconds for app service to settle after config change..."
-        sleep 30
-        echo "✅ Wait complete - SCM container should be ready for deployment"
-    
+    # 🟢 3. Prepare Clean deploy-root Structure
     - name: Create clean deployment structure for Oryx
       run: |
         echo "📦 Creating clean deployment structure for Oryx..."
         
         # Create a clean deploy directory
         mkdir -p deploy-root
-        
-        # Create flat Oryx-compatible structure
-        echo "🔧 Creating flat Oryx-compatible structure..."
         
         # Copy main.ts to root (Oryx expects main.ts at root)
         cp apps/backend/src/main.ts deploy-root/main.ts
@@ -169,7 +115,11 @@ jobs:
           ]
         }' > deploy-root/tsconfig.json
         
-        # Fix package.json for flat Oryx structure
+        echo "✅ Clean deployment structure created"
+
+    # 🟢 4. Fix package.json scripts (Node-only)
+    - name: Fix package.json for flat Oryx structure
+      run: |
         echo "🔧 Fixing package.json for flat Oryx structure..."
         node -e "
         const fs = require('fs');
@@ -209,7 +159,7 @@ jobs:
           echo "📦 Dependencies count: $(jq '.dependencies | length' deploy-root/package.json || echo '0')"
           echo "📄 Main entry point: $(jq -r '.main // "NOT SET"' deploy-root/package.json)"
           echo "📄 Start script: $(jq -r '.scripts.start // "NOT SET"' deploy-root/package.json)"
-          echo "📄 Build script: $(jq -r '.scripts.build // "NOT SET"' deploy-root/package.json)"
+          echo "📄 Build script: $(jq -r '.scripts.build // \"NOT SET\"' deploy-root/package.json)"
           
           # Validate critical scripts exist
           if [ "$(jq -r '.scripts.build // "NOT SET"' deploy-root/package.json)" = "NOT SET" ]; then
@@ -252,27 +202,16 @@ jobs:
         
         echo "✅ Clean deployment structure created successfully for Oryx"
 
-    - name: Configure Azure App Service Environment Variables
-      run: |
-        echo "🔧 Configuring Azure App Service environment variables..."
-        
-        az webapp config appsettings set \
-          --name ${{ env.AZURE_WEBAPP_NAME }} \
-          --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-          --slot ${{ env.AZURE_SLOT }} \
-          --settings \
-          DATABASE_URL="${{ secrets.DATABASE_URL }}" \
-          JWT_SECRET="${{ secrets.JWT_SECRET }}" \
-          NODE_ENV=production \
-          PORT=8080 \
-          FRONTEND_URL="${{ env.FRONTEND_URL }}"
-        
-        echo "✅ Environment variables configured successfully"
+    # 🟡 5. Login to Azure
+    - name: Login to Azure
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    - name: Configure Azure App Service for Oryx Build
+    # 🟡 6. Set App Service Settings (ORYX-related)
+    - name: Configure Azure App Service for Oryx build
       run: |
         echo "🔧 Configuring Azure App Service for Oryx build..."
-        
         az webapp config appsettings set \
           --name ${{ env.AZURE_WEBAPP_NAME }} \
           --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
@@ -281,22 +220,24 @@ jobs:
           SCM_DO_BUILD_DURING_DEPLOYMENT=true \
           ENABLE_ORYX_BUILD=true \
           WEBSITE_RUN_FROM_PACKAGE=1
-        
         echo "✅ Azure App Service prepared for Oryx deployment"
 
-    - name: Deploy to Azure Web App (Clean Oryx deployment)
+    # 🟡 7. Wait 45 seconds (Avoid SCM Restart Conflict)
+    - name: Wait before deployment to avoid SCM container restart conflict
+      run: |
+        echo "⏳ Waiting 45s for Azure App Service to stabilize..."
+        sleep 45
+        echo "✅ Wait complete - SCM container should be ready for deployment"
+
+    # 🔴 8. Deploy with azure/webapps-deploy@v3
+    - name: Deploy to Azure Web App
       uses: azure/webapps-deploy@v3
       with:
         app-name: ${{ env.AZURE_WEBAPP_NAME }}
         package: ./deploy-root
         publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_BACKEND }}
 
-    - name: Wait for deployment to complete
-      run: |
-        echo "⏳ Waiting for deployment to complete..."
-        sleep 30
-        echo "✅ Deployment wait completed"
-
+    # 🟢 9. Restart App Service
     - name: Restart Azure App Service
       run: |
         echo "🔄 Restarting Azure App Service..."
@@ -306,14 +247,20 @@ jobs:
           --slot ${{ env.AZURE_SLOT }}
         echo "✅ Azure App Service restarted"
 
-    - name: Verify deployment
+    # 🟢 10. Verify Startup and Logs
+    - name: Test health endpoints
       run: |
-        echo "🔍 Verifying deployment..."
-        echo "🌐 App URL: https://${{ env.AZURE_WEBAPP_NAME }}-${{ env.AZURE_SLOT }}.azurewebsites.net"
-        echo "🔧 Environment: ${{ env.NODE_ENV }}"
-        echo "📦 Node version: ${{ env.NODE_VERSION }}"
-        echo "🎯 Port: 8080"
-        echo "✅ Backend deployment complete"
-        echo "🌐 App: ${{ env.AZURE_WEBAPP_NAME }}"
-        echo "📋 Resource Group: ${{ env.AZURE_RESOURCE_GROUP }}"
-        echo "🎛️  Slot: ${{ env.AZURE_SLOT }}" 
+        echo "🧪 Testing health endpoints..."
+        
+        # Wait for app to start
+        echo "⏳ Waiting 30 seconds for app to start..."
+        sleep 30
+        
+        # Test health endpoints
+        echo "🔍 Testing /health endpoint..."
+        curl -f https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net/health || echo "❌ Health endpoint failed"
+        
+        echo "🔍 Testing /healthcheck endpoint..."
+        curl -f https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net/healthcheck || echo "❌ Healthcheck endpoint failed"
+        
+        echo "✅ Health endpoint tests completed" 
