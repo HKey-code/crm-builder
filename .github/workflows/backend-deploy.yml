@@ -162,12 +162,13 @@ jobs:
         
         # Move all files from apps/backend to root (including hidden files)
         echo "🔧 Moving apps/backend contents to root..."
-        cp -r apps/backend/* . 2>/dev/null || true
-        cp -r apps/backend/.* . 2>/dev/null || true
+        shopt -s dotglob
+        mv apps/backend/* ./
+        shopt -u dotglob
         
-        # Clean up the apps/ folder
-        echo "🧹 Cleaning up apps/ folder..."
-        rm -rf apps/
+        # Clean up only the backend folder
+        echo "🧹 Cleaning up apps/backend folder..."
+        rm -rf apps/backend
         
         # Verify the flattened structure
         echo "🔍 Verifying flattened structure..."
@@ -223,39 +224,23 @@ jobs:
         package: .
         publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_BACKEND }}
         
-    - name: Configure Azure App Service for Flattened Oryx Deployment
-      run: |
-        echo "🔧 Configuring Azure App Service for flattened Oryx deployment..."
+
         
-        # Enable Oryx build system (default behavior)
-        echo "✅ Enabling Oryx build system..."
+    - name: Configure Azure App Service Environment Variables
+      run: |
+        echo "🔧 Configuring Azure App Service environment variables..."
+        
         az webapp config appsettings set \
           --name ${{ env.AZURE_WEBAPP_NAME }} \
           --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
           --slot ${{ env.AZURE_SLOT }} \
           --settings \
-          SCM_DO_BUILD_DURING_DEPLOYMENT=true \
-          ENABLE_ORYX_BUILD=true \
-          WEBSITE_RUN_FROM_PACKAGE=1
+          DATABASE_URL="${{ secrets.DATABASE_URL }}" \
+          JWT_SECRET="${{ secrets.JWT_SECRET }}" \
+          NODE_ENV=production \
+          PORT=8080
         
-        # Set startup command to use npm start
-        echo "🎯 Setting startup command..."
-        az webapp config set \
-          --name ${{ env.AZURE_WEBAPP_NAME }} \
-          --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-          --slot ${{ env.AZURE_SLOT }} \
-          --startup-file "npm start"
-        
-        echo "✅ Azure App Service configured for flattened Oryx deployment"
-        
-    - name: Configure Azure App Service Environment Variables
-      run: |
-        echo "🔧 Note: Environment variables need to be configured manually in Azure App Service"
-        echo "📋 Please configure these environment variables in Azure App Service settings:"
-        echo "   - DATABASE_URL: ${{ secrets.DATABASE_URL }}"
-        echo "   - JWT_SECRET: ${{ secrets.JWT_SECRET }}"
-        echo "   - NODE_ENV: production"
-        echo "🔗 Go to: Azure Portal > App Service > Configuration > Application settings"
+        echo "✅ Environment variables configured successfully"
         
     - name: Verify deployment
       run: |
