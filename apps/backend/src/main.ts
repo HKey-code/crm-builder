@@ -4,6 +4,9 @@ import { config } from 'dotenv';
 import { join } from 'path';
 import * as appInsights from 'applicationinsights';
 
+
+
+
 // Initialize Application Insights if connection string is provided
 if (process.env.APPLICATIONINSIGHTS_CONNECTION_STRING) {
   console.log('🔍 Initializing Application Insights...');
@@ -57,8 +60,17 @@ async function bootstrap() {
   console.log(`🚀 Application is running on port: ${port}`);
   console.log(`🚀 Healthcheck available at: /health and /healthcheck`);
   
+  // Application Insights tracking after app starts
+  console.log('🔍 Insights connection:', process.env.APPLICATIONINSIGHTS_CONNECTION_STRING);
+  if (appInsights.defaultClient) {
+    appInsights.defaultClient.trackTrace({ message: '✅ NestJS app has started' });
+    console.log('✅ Application Insights trace sent');
+  } else {
+    console.log('⚠️  Application Insights client not available');
+  }
+  
           // Test deployment trigger - Mon Jul 21 01:45:00 CDT 2025
-        const dummyVar = 'workflow-trigger-test-v41';
+        const dummyVar = 'workflow-trigger-test-v42';
         console.log(`🔧 Dummy variable: ${dummyVar}`);
         console.log('✅ Bootstrap completed successfully');
         console.log('🚀 Deployment test - Updated at: ' + new Date().toISOString());
