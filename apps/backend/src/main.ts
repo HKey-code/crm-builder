@@ -2,6 +2,27 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { config } from 'dotenv';
 import { join } from 'path';
+import * as appInsights from 'applicationinsights';
+
+// Initialize Application Insights if connection string is provided
+if (process.env.APPLICATIONINSIGHTS_CONNECTION_STRING) {
+  console.log('🔍 Initializing Application Insights...');
+  appInsights.setup(process.env.APPLICATIONINSIGHTS_CONNECTION_STRING)
+    .setAutoDependencyCorrelation(true)
+    .setAutoCollectRequests(true)
+    .setAutoCollectPerformance(true)
+    .setAutoCollectExceptions(true)
+    .setAutoCollectDependencies(true)
+    .setAutoCollectConsole(true, true)
+    .setSendLiveMetrics(true)
+    .start();
+  
+  // Log a test trace to verify initialization
+  appInsights.defaultClient.trackTrace({ message: 'Application Insights initialized successfully' });
+  console.log('✅ Application Insights initialized');
+} else {
+  console.log('⚠️  APPLICATIONINSIGHTS_CONNECTION_STRING not set - skipping Application Insights initialization');
+}
 
 // Load .env from root directory only in development
 if (process.env.NODE_ENV !== 'production') {
