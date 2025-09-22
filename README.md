@@ -98,6 +98,156 @@ npm test
 npm run build
 ```
 
+## 🌱 Database Seeding
+
+The project includes a comprehensive, production-safe database seeding system with environment-driven configuration.
+
+### Quick Start
+
+```bash
+# Development seeding (with probe users)
+ENABLE_DEMO_PROBE_USERS=true ENABLE_AUDIT_LOGS=true npx prisma db seed
+
+# Production seeding (safe defaults)
+NODE_ENV=production ENABLE_DEMO_PROBE_USERS=false ENABLE_AUDIT_LOGS=true TZ=UTC npx prisma db seed
+```
+
+### Environment Variables
+
+The seed script supports extensive customization through environment variables:
+
+#### **Core Configuration**
+```bash
+# Environment detection
+NODE_ENV=development|staging|production
+
+# Feature toggles
+ENABLE_DEMO_PROBE_USERS=true|false    # Default: false in production, true elsewhere
+ENABLE_AUDIT_LOGS=true|false          # Default: true
+
+# Timezone (critical for production)
+TZ=UTC                                # Always use UTC for consistency
+
+# Seed version (for ops teams)
+SEED_VERSION=1.1.0                    # Default: from package.json or "1.0.0"
+```
+
+#### **Custom Tenant & User Names**
+```bash
+# Tenant configuration
+SEED_TENANT_NAME="Your Company Name"           # Default: "ACME Corp"
+SEED_ADMIN_EMAIL="admin@yourcompany.com"       # Default: "admin@acme.com"
+SEED_SERVICE_EMAIL="service@yourcompany.com"   # Default: "service@acme.com"
+SEED_SALES_EMAIL="sales@yourcompany.com"       # Default: "sales@acme.com"
+
+# Probe user configuration (for synthetic monitoring)
+SEED_PROBE_EMAIL="probe@yourcompany.com"       # Default: "probe@system.com"
+SEED_PROBE_TENANT_NAME="YOUR-PROBE-TENANT"     # Default: "SYSTEM-PROBE-TENANT"
+```
+
+### Usage Examples
+
+#### **Development Environment**
+```bash
+# Full development setup with probe users
+ENABLE_DEMO_PROBE_USERS=true \
+ENABLE_AUDIT_LOGS=true \
+SEED_TENANT_NAME="Dev Team Corp" \
+SEED_ADMIN_EMAIL="dev-admin@company.com" \
+npx prisma db seed
+```
+
+#### **QA Environment**
+```bash
+# QA setup with custom configuration
+NODE_ENV=qa \
+ENABLE_DEMO_PROBE_USERS=true \
+ENABLE_AUDIT_LOGS=true \
+SEED_TENANT_NAME="QA Test Environment" \
+SEED_ADMIN_EMAIL="qa-admin@company.com" \
+TZ=UTC \
+npx prisma db seed
+```
+
+#### **Production Environment**
+```bash
+# Production-safe seeding (probe users disabled)
+NODE_ENV=production \
+ENABLE_DEMO_PROBE_USERS=false \
+ENABLE_AUDIT_LOGS=true \
+SEED_TENANT_NAME="Production Corp" \
+SEED_ADMIN_EMAIL="admin@production.com" \
+TZ=UTC \
+npx prisma db seed
+
+# Custom seed version (for ops teams)
+SEED_VERSION=1.1.0 \
+NODE_ENV=production \
+ENABLE_DEMO_PROBE_USERS=false \
+ENABLE_AUDIT_LOGS=true \
+TZ=UTC \
+npx prisma db seed
+```
+
+### Automated Seeding
+
+The project includes GitHub Actions workflows for automated database seeding:
+
+- **Automatic triggering** on Prisma schema or backend code changes
+- **Manual triggering** with custom parameters via GitHub Actions UI
+- **Environment-specific** configurations for dev/staging/qa
+- **Production safety** - never seeds production databases
+
+See [GitHub Actions Seeding Documentation](docs/GITHUB_ACTIONS_SEEDING.md) for details.
+
+### Seed Features
+
+- ✅ **Production-safe defaults** - Probe users disabled in production
+- ✅ **UTC timezone enforcement** - Consistent timestamps across environments
+- ✅ **Idempotent execution** - Safe to run multiple times
+- ✅ **Environment detection** - Automatic dev/staging/production configuration
+- ✅ **Seed version tracking** - Complete audit trail of seeding operations
+- ✅ **Health checks** - Verification of seeded data
+- ✅ **Version bumping** - Ops teams can bump versions without code changes
+
+### Database Migration
+
+The seed version tracking requires the `seed_version_history` table. Apply the migration:
+
+```bash
+# Apply to your Azure database
+./scripts/apply-seed-version-migration.sh [environment]
+
+# Examples:
+./scripts/apply-seed-version-migration.sh development
+./scripts/apply-seed-version-migration.sh staging
+```
+
+**Note**: Migrations are applied automatically in GitHub Actions workflows.
+- ✅ **Multi-tenant ready** - Support for tenant-scoped IDs when needed
+
+### Verification
+
+After seeding, verify the setup:
+
+```bash
+# Check seed version
+npx prisma db execute --stdin <<< "
+  SELECT \"version\", \"environment\", \"lastRunAt\", \"config\" 
+  FROM \"seed_version_history\" WHERE id = 1;
+"
+
+# Verify entity counts
+npx prisma db execute --stdin <<< "
+  SELECT 
+    (SELECT COUNT(*) FROM \"Tenant\") as tenant_count,
+    (SELECT COUNT(*) FROM \"User\") as user_count,
+    (SELECT COUNT(*) FROM \"TenantLicense\") as license_count;
+"
+```
+
+For more details, see [Seed Version Tracking Documentation](docs/SEED_VERSION_TRACKING.md).
+
 ## 🚀 Deployment
 
 ### Automated Deployment

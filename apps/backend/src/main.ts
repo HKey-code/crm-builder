@@ -1,5 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { ValidationPipe } from '@nestjs/common';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { config } from 'dotenv';
 import { join } from 'path';
 import * as appInsights from 'applicationinsights';
@@ -51,6 +53,35 @@ async function bootstrap() {
     credentials: true,
   });
   console.log('✅ CORS configured');
+
+  // Global validation pipe
+  app.useGlobalPipes(new ValidationPipe({
+    transform: true,
+    whitelist: true,
+    forbidNonWhitelisted: true,
+  }));
+
+  // Swagger/OpenAPI documentation
+  const config = new DocumentBuilder()
+    .setTitle('CRM License System API')
+    .setDescription('Complete CRM license management system with tenant isolation, seat tracking, and audit trails')
+    .setVersion('1.0')
+    .addTag('licenses', 'License management operations')
+    .addTag('health', 'Health monitoring endpoints')
+    .addTag('service', 'Service module endpoints (requires SMART_SERVICE license)')
+    .addTag('sales', 'Sales module endpoints (requires SMART_SALES license)')
+    .addTag('users', 'User management operations')
+    .addTag('tenants', 'Tenant management operations')
+    .addBearerAuth()
+    .build();
+
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api', app, document, {
+    swaggerOptions: {
+      persistAuthorization: true,
+    },
+  });
+  console.log('✅ OpenAPI documentation configured at /api');
 
   const port = process.env.PORT || 8080;
   console.log(`🎯 Starting server on port: ${port}`);

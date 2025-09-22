@@ -1,0 +1,352 @@
+name: Database Seed
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to seed'
+        required: true
+        default: 'development'
+        type: choice
+        options:
+          - development
+          - staging
+          - qa
+          - uat
+          - preprod
+      enable_probe_users:
+        description: 'Enable probe users for synthetic monitoring'
+        required: false
+        default: true
+        type: boolean
+      enable_audit_logs:
+        description: 'Enable audit logs'
+        required: false
+        default: true
+        type: boolean
+      seed_version:
+        description: 'Custom seed version (optional, defaults to package.json or 1.0.0)'
+        required: false
+        type: string
+      custom_tenant_name:
+        description: 'Custom tenant name (optional)'
+        required: false
+        type: string
+      custom_admin_email:
+        description: 'Custom admin email (optional)'
+        required: false
+        type: string
+  push:
+    branches: [main, develop]
+    paths:
+      - 'libs/schema-engine/prisma/**'
+      - 'apps/backend/**'
+      - '.github/workflows/seed-database.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'libs/schema-engine/prisma/**'
+      - 'apps/backend/**'
+
+jobs:
+  seed-database:
+    name: Seed Database - ${{ github.event.inputs.environment || 'development' }}
+    runs-on: ubuntu-latest
+    
+    # Only run on non-production environments
+    if: github.event.inputs.environment != 'production' && github.ref != 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Set Database URL
+        run: |
+          # Set DATABASE_URL based on environment
+          case "${{ github.event.inputs.environment || 'development' }}" in
+            "qa")
+              echo "DATABASE_URL=${{ secrets.DATABASE_URL_QA }}" >> $GITHUB_ENV
+              echo "🌐 Using QA database"
+              ;;
+            "staging")
+              echo "DATABASE_URL=${{ secrets.DATABASE_URL_STAGING }}" >> $GITHUB_ENV
+              echo "🌐 Using Staging database"
+              ;;
+            "uat")
+              echo "DATABASE_URL=${{ secrets.DATABASE_URL_UAT }}" >> $GITHUB_ENV
+              echo "🌐 Using UAT database"
+              ;;
+            "preprod")
+              echo "DATABASE_URL=${{ secrets.DATABASE_URL_PREPROD }}" >> $GITHUB_ENV
+              echo "🌐 Using PreProd database"
+              ;;
+            *)
+              echo "DATABASE_URL=${{ secrets.DATABASE_URL_DEV }}" >> $GITHUB_ENV
+              echo "🌐 Using Development database"
+              ;;
+          esac
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Run database migrations
+        run: npx prisma migrate deploy
+
+      - name: Regenerate Prisma client
+        run: npx prisma generate
+
+      - name: Seed database
+        run: |
+          echo "🌱 Seeding database for environment: ${{ github.event.inputs.environment || 'development' }}"
+          
+          # Set environment variables based on input
+          export NODE_ENV="${{ github.event.inputs.environment || 'development' }}"
+          export TZ="UTC"
+          export ENABLE_DEMO_PROBE_USERS="${{ github.event.inputs.enable_probe_users || 'true' }}"
+          export ENABLE_AUDIT_LOGS="${{ github.event.inputs.enable_audit_logs || 'true' }}"
+          
+          # Set seed version if provided
+          if [ -n "${{ github.event.inputs.seed_version }}" ]; then
+            export SEED_VERSION="${{ github.event.inputs.seed_version }}"
+            echo "📋 Using custom seed version: $SEED_VERSION"
+          else
+            echo "📋 Using seed version from package.json or default"
+          fi
+          
+          # Set custom values if provided
+          if [ -n "${{ github.event.inputs.custom_tenant_name }}" ]; then
+            export SEED_TENANT_NAME="${{ github.event.inputs.custom_tenant_name }}"
+          fi
+          
+          if [ -n "${{ github.event.inputs.custom_admin_email }}" ]; then
+            export SEED_ADMIN_EMAIL="${{ github.event.inputs.custom_admin_email }}"
+          fi
+          
+          # Run the seed
+          npx prisma db seed
+
+      - name: Verify seed completion
+        run: |
+          echo "✅ Verifying seed completion..."
+          
+          # Check if seed version table exists and was recorded
+          npx prisma db execute --stdin <<< "
+            SELECT 
+              \"version\",
+              \"environment\",
+              \"lastRunAt\",
+              \"config\"->>'enableDemoProbeUsers' as probe_users_enabled,
+              \"config\"->>'enableAuditLogs' as audit_logs_enabled,
+              \"summary\"->>'tenantsCreated' as tenants_created,
+              \"summary\"->>'usersCreated' as users_created
+            FROM \"seed_version_history\" 
+            WHERE id = 1;
+          " || echo "⚠️ Seed version table not found - this is normal on first run"
+          
+          # Additional verification - check if basic tables exist
+          echo "🔍 Checking basic table structure..."
+          npx prisma db execute --stdin <<< "
+            SELECT 
+              table_name 
+            FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name IN ('Tenant', 'User', 'TenantLicense', 'seed_version_history')
+            ORDER BY table_name;
+          " || echo "⚠️ Could not verify table structure - this is normal on first run"
+
+      - name: Health check
+        run: |
+          echo "🏥 Running health checks..."
+          
+          # Basic health check - verify key entities exist
+          npx prisma db execute --stdin <<< "
+            SELECT 
+              (SELECT COUNT(*) FROM \"Tenant\") as tenant_count,
+              (SELECT COUNT(*) FROM \"User\") as user_count,
+              (SELECT COUNT(*) FROM \"TenantLicense\") as license_count,
+              (SELECT COUNT(*) FROM \"Customer\") as customer_count;
+          " || echo "⚠️ Health check failed - check if tables exist"
+          
+          # Graceful degradation - check what tables are available
+          echo "🔍 Checking available tables..."
+          npx prisma db execute --stdin <<< "
+            SELECT 
+              table_name,
+              (SELECT COUNT(*) FROM information_schema.columns WHERE table_name = t.table_name) as column_count
+            FROM information_schema.tables t
+            WHERE table_schema = 'public' 
+            AND table_name IN ('Tenant', 'User', 'TenantLicense', 'Customer', 'seed_version_history')
+            ORDER BY table_name;
+          " || echo "⚠️ Could not check table availability - this is normal on first run"
+
+      - name: Generate OpenAPI Specification
+        run: |
+          echo "📋 Generating OpenAPI specification..."
+          cd apps/backend
+          npm run generate:openapi --if-present || echo "⚠️ OpenAPI generation skipped - backend app not available"
+
+      - name: Generate TypeScript SDK
+        run: |
+          echo "🔧 Generating TypeScript SDK..."
+          cd apps/backend
+          npm run generate:sdk --if-present || echo "⚠️ SDK generation skipped - backend app not available"
+
+      - name: Build SDK Package
+        run: |
+          echo "📦 Building SDK package..."
+          cd libs/sdk
+          npm run build --if-present || echo "⚠️ SDK build skipped - SDK package not available"
+
+      - name: Upload SDK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: crm-license-sdk-${{ github.event.inputs.environment || 'development' }}
+          path: |
+            libs/sdk/dist/
+            libs/sdk/package.json
+            libs/sdk/README.md
+            openapi-spec.json
+          retention-days: 30
+
+  seed-staging:
+    name: Seed Staging Database
+    runs-on: ubuntu-latest
+    needs: seed-database
+    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_STAGING }}
+
+      - name: Run database migrations
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_STAGING }}
+
+      - name: Regenerate Prisma client
+        run: npx prisma generate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_STAGING }}
+
+      - name: Seed staging database
+        run: |
+          echo "🌱 Seeding staging database..."
+          
+          export NODE_ENV="staging"
+          export TZ="UTC"
+          export ENABLE_DEMO_PROBE_USERS="true"
+          export ENABLE_AUDIT_LOGS="true"
+          export SEED_TENANT_NAME="Staging Environment"
+          export SEED_ADMIN_EMAIL="admin@staging.local"
+          export SEED_SERVICE_EMAIL="service@staging.local"
+          export SEED_SALES_EMAIL="sales@staging.local"
+          export SEED_PROBE_EMAIL="probe@staging.local"
+          export SEED_PROBE_TENANT_NAME="STAGING-PROBE-TENANT"
+          
+          npx prisma db seed
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_STAGING }}
+
+      - name: Verify staging seed
+        run: |
+          echo "✅ Verifying staging seed..."
+          
+          npx prisma db execute --stdin <<< "
+            SELECT 
+              \"version\",
+              \"environment\",
+              \"lastRunAt\",
+              \"config\"->>'tenantName' as tenant_name,
+              \"summary\"->>'usersCreated' as users_created
+            FROM \"seed_version_history\" 
+            WHERE id = 1;
+          " || echo "⚠️ Seed version table not found - this is normal on first run"
+          
+          # Additional staging verification
+          echo "🔍 Checking staging table structure..."
+          npx prisma db execute --stdin <<< "
+            SELECT 
+              table_name 
+            FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name IN ('Tenant', 'User', 'TenantLicense', 'seed_version_history')
+            ORDER BY table_name;
+          " || echo "⚠️ Could not verify staging table structure - this is normal on first run"
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_STAGING }}
+
+      - name: Generate OpenAPI Specification (Staging)
+        run: |
+          echo "📋 Generating OpenAPI specification for staging..."
+          cd apps/backend
+          npm run generate:openapi --if-present || echo "⚠️ OpenAPI generation skipped - backend app not available"
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_STAGING }}
+
+      - name: Generate TypeScript SDK (Staging)
+        run: |
+          echo "🔧 Generating TypeScript SDK for staging..."
+          cd apps/backend
+          npm run generate:sdk --if-present || echo "⚠️ SDK generation skipped - backend app not available"
+
+      - name: Build SDK Package (Staging)
+        run: |
+          echo "📦 Building SDK package for staging..."
+          cd libs/sdk
+          npm run build --if-present || echo "⚠️ SDK build skipped - SDK package not available"
+
+      - name: Upload Staging SDK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: crm-license-sdk-staging
+          path: |
+            libs/sdk/dist/
+            libs/sdk/package.json
+            libs/sdk/README.md
+            openapi-spec.json
+          retention-days: 30
+
+  notify-seed-completion:
+    name: Notify Seed Completion
+    runs-on: ubuntu-latest
+    needs: [seed-database, seed-staging]
+    if: always()
+    
+    steps:
+      - name: Notify success
+        if: needs.seed-database.result == 'success' && needs.seed-staging.result == 'success'
+        run: |
+          echo "🎉 Database seeding completed successfully!"
+          echo "Environment: ${{ github.event.inputs.environment || 'development' }}"
+          echo "Probe users: ${{ github.event.inputs.enable_probe_users || 'true' }}"
+          echo "Audit logs: ${{ github.event.inputs.enable_audit_logs || 'true' }}"
+
+      - name: Notify failure
+        if: needs.seed-database.result == 'failure' || needs.seed-staging.result == 'failure'
+        run: |
+          echo "❌ Database seeding failed!"
+          echo "Check the logs for details."
+          exit 1

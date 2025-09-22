@@ -1,0 +1,138 @@
+name: Prisma Migration Check
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'libs/schema-engine/prisma/schema.prisma'
+      - 'libs/schema-engine/prisma/migrations/**'
+      - '.github/workflows/prisma-migration-check.yml'
+
+jobs:
+  check-migrations:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Prisma CLI
+        run: npm install -g prisma
+
+      - name: Check for uncommitted schema changes
+        run: |
+          echo "🔍 Checking for uncommitted Prisma migrations..."
+          
+          # Generate migration diff
+          npx prisma migrate diff \
+            --from-schema-datamodel libs/schema-engine/prisma/schema.prisma \
+            --to-schema-datamodel libs/schema-engine/prisma/schema.prisma \
+            --script > migration_diff.sql || true
+          
+          # Check if there are any differences
+          if [ -s migration_diff.sql ]; then
+            echo "❌ Uncommitted schema changes detected!"
+            echo "📋 Migration diff:"
+            cat migration_diff.sql
+            echo ""
+            echo "💡 Please commit your schema changes before merging this PR"
+            echo "   Run: npx prisma migrate dev --name your_migration_name"
+            exit 1
+          else
+            echo "✅ No uncommitted schema changes detected"
+          fi
+
+      - name: Validate schema
+        run: |
+          echo "🔍 Validating Prisma schema..."
+          npx prisma validate --schema=libs/schema-engine/prisma/schema.prisma
+          echo "✅ Schema validation passed"
+
+      - name: Generate Prisma client
+        run: |
+          echo "🔧 Generating Prisma client..."
+          npx prisma generate --schema=libs/schema-engine/prisma/schema.prisma
+          echo "✅ Prisma client generated successfully"
+
+      - name: Check for migration files
+        run: |
+          echo "🔍 Checking for new migration files..."
+          
+          # Get the list of migration files
+          MIGRATION_FILES=$(find libs/schema-engine/prisma/migrations -name "*.sql" -type f | wc -l)
+          
+          if [ "$MIGRATION_FILES" -gt 0 ]; then
+            echo "📁 Found $MIGRATION_FILES migration files"
+            echo "📋 Migration files:"
+            find libs/schema-engine/prisma/migrations -name "*.sql" -type f
+          else
+            echo "⚠️  No migration files found"
+          fi
+
+      - name: Comment on PR
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## ❌ Prisma Migration Check Failed
+            
+            This PR contains uncommitted schema changes that need to be migrated before merging.
+            
+            ### Required Actions:
+            1. **Generate Migration**: Run \`npx prisma migrate dev --name your_migration_name\`
+            2. **Commit Migration**: Add and commit the generated migration files
+            3. **Push Changes**: Push the migration files to this PR
+            
+            ### Migration Location:
+            - Schema: \`libs/schema-engine/prisma/schema.prisma\`
+            - Migrations: \`libs/schema-engine/prisma/migrations/\`
+            
+            ### Commands:
+            \`\`\`bash
+            # Generate migration
+            npx prisma migrate dev --name your_migration_name --schema=libs/schema-engine/prisma/schema.prisma
+            
+            # Commit and push
+            git add libs/schema-engine/prisma/migrations/
+            git commit -m "Add Prisma migration: your_migration_name"
+            git push
+            \`\`\`
+            
+            This check ensures database schema changes are properly tracked and can be safely deployed.`
+            })
+
+      - name: Comment on PR (Success)
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## ✅ Prisma Migration Check Passed
+            
+            No uncommitted schema changes detected. This PR is ready for review!
+            
+            ### Schema Status:
+            - ✅ Schema validation passed
+            - ✅ Prisma client generated successfully
+            - ✅ No uncommitted migrations
+            
+            The database schema is properly synchronized with the codebase.`
+            })

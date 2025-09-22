@@ -1,0 +1,251 @@
+name: Prisma Migration Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+      confirm_migration:
+        description: 'Confirm you want to apply database migrations'
+        required: true
+        type: boolean
+        default: false
+  push:
+    branches: [ main ]
+    paths:
+      - 'libs/schema-engine/prisma/migrations/**'
+      - '.github/workflows/prisma-migrate-deploy.yml'
+
+jobs:
+  validate-migration:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.confirm_migration == 'true')
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Prisma CLI
+        run: npm install -g prisma
+
+      - name: Validate schema
+        run: |
+          echo "🔍 Validating Prisma schema..."
+          npx prisma validate --schema=libs/schema-engine/prisma/schema.prisma
+          echo "✅ Schema validation passed"
+
+      - name: Generate Prisma client
+        run: |
+          echo "🔧 Generating Prisma client..."
+          npx prisma generate --schema=libs/schema-engine/prisma/schema.prisma
+          echo "✅ Prisma client generated successfully"
+
+      - name: Check for pending migrations
+        run: |
+          echo "🔍 Checking for pending migrations..."
+          
+          # List all migration files
+          echo "📁 Available migrations:"
+          find libs/schema-engine/prisma/migrations -name "*.sql" -type f | sort
+          
+          # Count migrations
+          MIGRATION_COUNT=$(find libs/schema-engine/prisma/migrations -name "*.sql" -type f | wc -l)
+          echo "📊 Total migrations: $MIGRATION_COUNT"
+
+  deploy-migration:
+    runs-on: ubuntu-latest
+    needs: validate-migration
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.confirm_migration == 'true'
+    environment: ${{ github.event.inputs.environment }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Prisma CLI
+        run: npm install -g prisma
+
+      - name: Generate Prisma client
+        run: |
+          echo "🔧 Generating Prisma client..."
+          npx prisma generate --schema=libs/schema-engine/prisma/schema.prisma
+          echo "✅ Prisma client generated successfully"
+
+      - name: Deploy migrations to production
+        run: |
+          echo "🚀 Deploying migrations to production..."
+          echo "🔍 Environment: ${{ github.event.inputs.environment }}"
+          
+          # Set DATABASE_URL from secrets
+          export DATABASE_URL="${{ secrets.DATABASE_URL }}"
+          
+          # Apply migrations
+          npx prisma migrate deploy --schema=libs/schema-engine/prisma/schema.prisma
+          echo "✅ Migrations deployed successfully"
+
+      - name: Verify migration status
+        run: |
+          echo "🔍 Verifying migration status..."
+          
+          # Set DATABASE_URL from secrets
+          export DATABASE_URL="${{ secrets.DATABASE_URL }}"
+          
+          # Check migration status
+          npx prisma migrate status --schema=libs/schema-engine/prisma/schema.prisma
+          echo "✅ Migration verification complete"
+
+      - name: Generate Prisma client for deployment
+        run: |
+          echo "🔧 Generating Prisma client for deployment..."
+          npx prisma generate --schema=libs/schema-engine/prisma/schema.prisma
+          echo "✅ Prisma client ready for deployment"
+
+      - name: Notify deployment success
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## ✅ Database Migration Deployed Successfully
+            
+            ### Migration Details:
+            - **Environment**: ${{ github.event.inputs.environment }}
+            - **Deployed by**: @${{ github.actor }}
+            - **Deployed at**: ${{ github.event.head_commit.timestamp }}
+            
+            ### Migration Status:
+            - ✅ Schema validation passed
+            - ✅ Migrations applied successfully
+            - ✅ Prisma client generated
+            - ✅ Database schema updated
+            
+            The database schema has been successfully updated in production.`
+            })
+
+      - name: Notify deployment failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## ❌ Database Migration Failed
+            
+            ### Migration Details:
+            - **Environment**: ${{ github.event.inputs.environment }}
+            - **Attempted by**: @${{ github.actor }}
+            - **Failed at**: ${{ github.event.head_commit.timestamp }}
+            
+            ### Error Details:
+            The database migration failed. Please check the logs for details.
+            
+            ### Required Actions:
+            1. Review the migration logs
+            2. Fix any schema issues
+            3. Re-run the migration workflow
+            
+            **⚠️  IMPORTANT**: The database may be in an inconsistent state. Please verify the database integrity.`
+            })
+
+  dry-run-migration:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Prisma CLI
+        run: npm install -g prisma
+
+      - name: Dry run migration
+        run: |
+          echo "🔍 Performing dry run of migrations..."
+          
+          # Generate migration diff
+          npx prisma migrate diff \
+            --from-empty \
+            --to-schema-datamodel libs/schema-engine/prisma/schema.prisma \
+            --script > dry_run_migration.sql
+          
+          echo "📋 Dry run migration SQL:"
+          cat dry_run_migration.sql
+          
+          # Count the number of statements
+          STATEMENT_COUNT=$(grep -c ";" dry_run_migration.sql || echo "0")
+          echo "📊 Migration statements: $STATEMENT_COUNT"
+
+      - name: Comment dry run results
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const dryRunSQL = fs.readFileSync('dry_run_migration.sql', 'utf8');
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 🔍 Migration Dry Run Results
+            
+            ### Migration Summary:
+            - **Branch**: ${{ github.ref_name }}
+            - **Commit**: ${{ github.sha }}
+            - **Triggered by**: @${{ github.actor }}
+            
+            ### Migration SQL:
+            \`\`\`sql
+            ${dryRunSQL}
+            \`\`\`
+            
+            ### Next Steps:
+            1. **Review**: Check the migration SQL above
+            2. **Test**: Verify the migration works in development
+            3. **Deploy**: Use the manual workflow to deploy to production
+            
+            ### Manual Deployment:
+            To deploy this migration to production:
+            1. Go to Actions → Prisma Migration Deploy
+            2. Click "Run workflow"
+            3. Select environment and confirm
+            
+            **⚠️  Safety**: This is a dry run only. No changes have been made to the database.`
+            })

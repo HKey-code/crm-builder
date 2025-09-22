@@ -1,0 +1,10 @@
+{
+  "variable": [
+    {"key": "baseUrl", "value": "http://localhost:3000"},
+    {"key": "token", "value": "<paste_jwt>"},
+    {"key": "tenantId", "value": "<tenant_id>"},
+    {"key": "workflowId", "value": "<workflow_id>"},
+    {"key": "caseId", "value": "<case_id>"},
+    {"key": "instanceId", "value": "<instance_id>"}
+  ]
+}
