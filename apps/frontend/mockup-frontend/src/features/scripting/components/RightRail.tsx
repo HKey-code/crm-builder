@@ -450,9 +450,13 @@ export default function RightRail({ selectedNode, onPatch, onCloseMobile }: Righ
                                 return;
                               }
                               setInputTypeDraft(v);
-                              // Explicitly persist current options across non-text types
+                              // Explicitly persist ALL existing options across non-text types.
+                              // Prefer authoritative options from selectedNode if available; fallback to draft state.
                               if (v !== 'text') {
-                                sendPatch({ inputType: v as any, options: inputOptionsDraft });
+                                const preserved = Array.isArray(selectedNode?.options) && (selectedNode as any).options.length > 0
+                                  ? (selectedNode as any).options
+                                  : inputOptionsDraft;
+                                sendPatch({ inputType: v as any, options: preserved });
                               } else {
                                 sendPatch({ inputType: v as any });
                               }
