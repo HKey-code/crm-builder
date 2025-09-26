@@ -23,7 +23,6 @@ const LS = {
 }
 
 export default function RightRail({ selectedNode, onPatch, onCloseMobile }: RightRailProps) {
-  const dbg = React.useCallback((...args: any[]) => console.debug('[RightRail]', ...args), [])
   const [collapsed, setCollapsed] = React.useState<boolean>(() => localStorage.getItem(LS.collapsed) === '1')
   const [tab, setTab] = React.useState<TabKey>(() => (localStorage.getItem(LS.tab) as TabKey) || 'properties')
   const [width, setWidth] = React.useState<number>(() => {
@@ -90,17 +89,27 @@ export default function RightRail({ selectedNode, onPatch, onCloseMobile }: Righ
   const [inputPlaceholderDraft, setInputPlaceholderDraft] = React.useState('')
   const [inputOptionsDraft, setInputOptionsDraft] = React.useState<Array<{ label: string; value: string }>>([])
   const [pendingType, setPendingType] = React.useState<string | null>(null)
+  const optionCacheRef = React.useRef<Record<string, Array<{ label: string; value: string }>>>({})
+  const selectedNodeId = selectedNode?.id ?? null
 
   const pushOptionsUpdate = React.useCallback((nextOptions: Array<{ label: string; value: string }>) => {
-    setInputOptionsDraft(nextOptions)
+    const snapshot = nextOptions.map((opt) => ({ ...opt }))
+    setInputOptionsDraft(snapshot)
+    if (selectedNodeId) {
+      if (snapshot.length > 0) {
+        optionCacheRef.current[selectedNodeId] = snapshot.map((opt) => ({ ...opt }))
+      } else {
+        delete optionCacheRef.current[selectedNodeId]
+      }
+    }
+    console.log('[InputOptions] pushOptionsUpdate', { nodeId: selectedNodeId, options: snapshot })
     sendPatch({
-      options: nextOptions,
-      inputType: inputTypeDraft as any,
+      options: snapshot,
       content: inputContentDraft,
       varName: inputVarNameDraft,
       placeholder: inputPlaceholderDraft,
     })
-  }, [sendPatch, inputTypeDraft, inputContentDraft, inputVarNameDraft, inputPlaceholderDraft])
+  }, [sendPatch, inputContentDraft, inputVarNameDraft, inputPlaceholderDraft, selectedNodeId])
 
   React.useEffect(() => {
     if (selectedNode?.kind !== 'input') {
@@ -116,7 +125,16 @@ export default function RightRail({ selectedNode, onPatch, onCloseMobile }: Righ
     setInputTypeDraft(selectedNode.inputType ?? 'text')
     setInputPlaceholderDraft(selectedNode.placeholder ?? '')
     const opts = Array.isArray(selectedNode.options) ? selectedNode.options : []
-    setInputOptionsDraft(opts)
+    const snapshot = opts.map((opt) => ({ ...opt }))
+    setInputOptionsDraft(snapshot)
+    if (selectedNode.id) {
+      if (snapshot.length > 0) {
+        optionCacheRef.current[selectedNode.id] = snapshot.map((opt) => ({ ...opt }))
+      } else {
+        delete optionCacheRef.current[selectedNode.id]
+      }
+    }
+    console.log('[InputOptions] loadFromSelectedNode', { nodeId: selectedNode.id, options: snapshot })
   }, [selectedNode?.id, selectedNode?.kind, selectedNode?.options])
 
   const [choiceDraft, setChoiceDraft] = React.useState<ChoiceConfig | null>(null)
@@ -128,10 +146,8 @@ export default function RightRail({ selectedNode, onPatch, onCloseMobile }: Righ
         if (prev && JSON.stringify(prev) === JSON.stringify(ensured)) return prev
         const prevGroups = prev ? prev.groups.length : undefined
         if (lastChoiceNodeIdRef.current === selectedNode.id && typeof prevGroups === 'number' && ensured.groups.length < prevGroups) {
-          dbg('choiceDraft stale ignored', { id: selectedNode.id, prevGroups, nextGroups: ensured.groups.length })
           return prev
         }
-        dbg('choiceDraft set from selectedNode', { groups: ensured.groups.length, prevGroups, id: selectedNode?.id })
         return ensured
       })
       lastChoiceNodeIdRef.current = selectedNode.id
@@ -348,7 +364,6 @@ export default function RightRail({ selectedNode, onPatch, onCloseMobile }: Righ
                           currentNodeId={selectedNode.id}
                           onChange={(next) => {
                             setChoiceDraft(next)
-                            dbg('onChange from ChoiceEditor', { groups: next.groups.length })
                             sendPatch({ choice: next })
                           }}
                         />
@@ -442,21 +457,53 @@ export default function RightRail({ selectedNode, onPatch, onCloseMobile }: Righ
                             value={inputTypeDraft}
                             onChange={(e) => {
                               const v = e.target.value;
-                              if (v === 'text' && inputOptionsDraft.length > 0) {
-                                // Defer change and show inline warning with confirm/cancel
-                                setPendingType('text');
-                                // revert visual select immediately
-                                (e.target as HTMLSelectElement).value = inputTypeDraft;
+                              if (!selectedNodeId) {
+                                setPendingType(null);
+                                setInputTypeDraft(v);
+                                if (v === 'text') {
+                                  sendPatch({ inputType: 'text' as any, options: [] });
+                                } else {
+                                  sendPatch({ inputType: v as any });
+                                }
                                 return;
                               }
+
+                              if (v === 'text') {
+                                if (inputOptionsDraft.length > 0) {
+                                  console.log('[InputOptions] requestSwitchToTextWithOptions', { count: inputOptionsDraft.length })
+                                  setPendingType('text');
+                                  (e.target as HTMLSelectElement).value = inputTypeDraft;
+                                  return;
+                                }
+                                setPendingType(null);
+                                setInputTypeDraft('text');
+                                delete optionCacheRef.current[selectedNodeId];
+                                setInputOptionsDraft([]);
+                                sendPatch({
+                                  inputType: 'text' as any,
+                                  options: [],
+                                  content: inputContentDraft,
+                                  varName: inputVarNameDraft,
+                                  placeholder: inputPlaceholderDraft,
+                                });
+                                return;
+                              }
+
+                              setPendingType(null);
                               setInputTypeDraft(v);
-                              // Explicitly persist ALL existing options across non-text types.
-                              // Prefer authoritative options from selectedNode if available; fallback to draft state.
-                              if (v !== 'text') {
-                                const preserved = Array.isArray(selectedNode?.options) && (selectedNode as any).options.length > 0
-                                  ? (selectedNode as any).options
-                                  : inputOptionsDraft;
-                                sendPatch({ inputType: v as any, options: preserved });
+                              if (INPUT_TYPES_WITH_OPTIONS.has(v as any)) {
+                                const cached = optionCacheRef.current[selectedNodeId] ?? inputOptionsDraft;
+                                const nextOptions = (cached.length > 0 ? cached : inputOptionsDraft).map((opt) => ({ ...opt }));
+                                optionCacheRef.current[selectedNodeId] = nextOptions.map((opt) => ({ ...opt }));
+                                setInputOptionsDraft(nextOptions);
+                                console.log('[InputOptions] preserveOnTypeChange', { toType: v, count: nextOptions.length, options: nextOptions })
+                                sendPatch({
+                                  inputType: v as any,
+                                  options: nextOptions,
+                                  content: inputContentDraft,
+                                  varName: inputVarNameDraft,
+                                  placeholder: inputPlaceholderDraft,
+                                });
                               } else {
                                 sendPatch({ inputType: v as any });
                               }
@@ -572,11 +619,20 @@ export default function RightRail({ selectedNode, onPatch, onCloseMobile }: Righ
                                 type="button"
                                 className="rounded border px-2 py-1"
                                 onClick={() => {
-                                  // Confirm: clear options and switch
-                                  pushOptionsUpdate([]);
-                                  setInputTypeDraft('text');
-                                  sendPatch({ inputType: 'text' as any });
-                                  setPendingType(null);
+                                  if (selectedNodeId) {
+                                    delete optionCacheRef.current[selectedNodeId]
+                                  }
+                                  setInputTypeDraft('text')
+                                  setInputOptionsDraft([])
+                                  setPendingType(null)
+                                  console.log('[InputOptions] confirmSwitchToTextClearingOptions')
+                                  sendPatch({
+                                    inputType: 'text' as any,
+                                    options: [],
+                                    content: inputContentDraft,
+                                    varName: inputVarNameDraft,
+                                    placeholder: inputPlaceholderDraft,
+                                  })
                                 }}
                               >
                                 Remove options and switch
