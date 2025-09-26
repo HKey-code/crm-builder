@@ -89,6 +89,7 @@ export default function RightRail({ selectedNode, onPatch, onCloseMobile }: Righ
   const [inputTypeDraft, setInputTypeDraft] = React.useState<string>('text')
   const [inputPlaceholderDraft, setInputPlaceholderDraft] = React.useState('')
   const [inputOptionsDraft, setInputOptionsDraft] = React.useState<Array<{ label: string; value: string }>>([])
+  const [pendingType, setPendingType] = React.useState<string | null>(null)
 
   const pushOptionsUpdate = React.useCallback((nextOptions: Array<{ label: string; value: string }>) => {
     setInputOptionsDraft(nextOptions)
@@ -439,7 +440,23 @@ export default function RightRail({ selectedNode, onPatch, onCloseMobile }: Righ
                           <select
                             className="rounded border px-2 py-2 text-sm"
                             value={inputTypeDraft}
-                            onChange={(e) => { const v = e.target.value; setInputTypeDraft(v); sendPatch({ inputType: v as any }) }}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              if (v === 'text' && inputOptionsDraft.length > 0) {
+                                // Defer change and show inline warning with confirm/cancel
+                                setPendingType('text');
+                                // revert visual select immediately
+                                (e.target as HTMLSelectElement).value = inputTypeDraft;
+                                return;
+                              }
+                              setInputTypeDraft(v);
+                              // Explicitly persist current options across non-text types
+                              if (v !== 'text') {
+                                sendPatch({ inputType: v as any, options: inputOptionsDraft });
+                              } else {
+                                sendPatch({ inputType: v as any });
+                              }
+                            }}
                           >
                             <option value="text">Text</option>
                             <option value="singleSelect">Single select</option>
@@ -540,6 +557,33 @@ export default function RightRail({ selectedNode, onPatch, onCloseMobile }: Righ
                                   </div>
                                 ))}
                               </div>
+                            </div>
+                          </div>
+                        )}
+                        {pendingType === 'text' && inputOptionsDraft.length > 0 && (
+                          <div className="rounded border border-amber-300 bg-amber-50 p-2 text-xs text-[var(--lpc-text)]">
+                            <div className="mb-2">Switching to <strong>Text</strong> will remove existing option labels/values. Do you want to continue?</div>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                className="rounded border px-2 py-1"
+                                onClick={() => {
+                                  // Confirm: clear options and switch
+                                  pushOptionsUpdate([]);
+                                  setInputTypeDraft('text');
+                                  sendPatch({ inputType: 'text' as any });
+                                  setPendingType(null);
+                                }}
+                              >
+                                Remove options and switch
+                              </button>
+                              <button
+                                type="button"
+                                className="rounded border px-2 py-1"
+                                onClick={() => setPendingType(null)}
+                              >
+                                Cancel
+                              </button>
                             </div>
                           </div>
                         )}

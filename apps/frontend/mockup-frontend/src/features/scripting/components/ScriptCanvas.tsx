@@ -25,10 +25,12 @@ import {
   type NodeChange,
   type EdgeChange,
   type Viewport,
+  MarkerType,
 } from '@xyflow/react'
 
 import { useScriptStore } from '../store'
 import type { ScriptNode, ScriptEdge } from '../types'
+import DeletableEdge from './edges/DeletableEdge'
 
 /* --------------------------------- utils ---------------------------------- */
 
@@ -105,6 +107,7 @@ const StartNode = React.memo(function StartNode({ id, data }: { id: string; data
 })
 
 const NODE_TYPES: Record<string, any> = { start: StartNode, default: StartNode }
+const EDGE_TYPES = { deletable: DeletableEdge }
 
 /* ----------------------------- store → RF props --------------------------- */
 
@@ -130,7 +133,7 @@ function useRFProps() {
         source: e.source,
         target: e.target,
         label: e.label,
-        type: 'default',
+        type: 'deletable',
         hidden: false,
       })),
     [present.edges]
@@ -379,12 +382,17 @@ function CanvasInner({ paneRef }: { paneRef: React.RefObject<HTMLDivElement | nu
       nodes={nodes}
       edges={edges}
       nodeTypes={NODE_TYPES}
+      edgeTypes={EDGE_TYPES}
       onInit={onInit}
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
       onConnect={onConnect}
       onNodeDragStop={onNodeDragStop}
       onSelectionChange={onSelectionChange}
+      defaultEdgeOptions={{
+        type: 'deletable',
+        markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--lpc-primary)', width: 18, height: 18 },
+      }}
       proOptions={{ hideAttribution: true }}
     >
       <MiniMap pannable zoomable />
