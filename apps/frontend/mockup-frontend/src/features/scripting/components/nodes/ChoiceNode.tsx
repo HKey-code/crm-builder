@@ -13,13 +13,6 @@ function RuleRow({ rule, index, groupIndex }: { rule: Rule; index: number; group
   return (
     <div className="relative flex items-center justify-between gap-2 rounded border border-[var(--lpc-stroke)] bg-white px-3 py-1.5 text-sm">
       <span className="font-medium text-[var(--lpc-text)] truncate" title={label}>{label}</span>
-      <Handle
-        id={rule.id}
-        type="source"
-        position={Position.Right}
-        style={{ top: '50%', transform: 'translateY(-50%)' }}
-        className="!h-3 !w-3 !rounded-full !bg-[var(--lpc-primary)]"
-      />
     </div>
   )
 }
@@ -27,7 +20,7 @@ function RuleRow({ rule, index, groupIndex }: { rule: Rule; index: number; group
 function GroupBlock({ group, index }: { group: Group; index: number }) {
   const title = group.title && group.title.trim().length > 0 ? group.title : `Group ${index + 1}`
   return (
-    <div className="space-y-2 rounded border border-[var(--lpc-stroke)]/70 bg-white/70 p-3">
+    <div className="space-y-2 rounded border border-[var(--lpc-stroke)]/70 bg-white/70 p-3 relative">
       <div className="text-xs font-medium uppercase tracking-wide text-[var(--lpc-muted)]">{title}</div>
       <div className="space-y-2">
         {(group.rules ?? []).map((rule, idx) => (
@@ -37,6 +30,13 @@ function GroupBlock({ group, index }: { group: Group; index: number }) {
           <div className="text-[11px] italic text-[var(--lpc-muted)]">No rules</div>
         )}
       </div>
+      <Handle
+        id={group.id}
+        type="source"
+        position={Position.Right}
+        style={{ top: '50%', transform: 'translate(12px, -50%)' }}
+        className="!h-3 !w-3 !rounded-full !bg-[var(--lpc-primary)] shadow-sm ring-1 ring-white"
+      />
     </div>
   )
 }
@@ -51,6 +51,8 @@ const ChoiceNode = React.memo(function ChoiceNode({ id, data, selected }: NodePr
     })
     return () => cancelAnimationFrame(raf)
   }, [id, cfg.groups?.length, update])
+
+  // (no dynamic measurement needed; each group handle is centered via CSS in its own container)
 
   const title = data.label ?? 'Choice'
 
@@ -88,8 +90,8 @@ const ChoiceNode = React.memo(function ChoiceNode({ id, data, selected }: NodePr
           id="__default__"
           type="source"
           position={Position.Right}
-          style={{ top: '50%', transform: 'translateY(-50%)' }}
-          className="!h-3 !w-3 !rounded-full !bg-[var(--lpc-primary)]"
+          style={{ top: '50%', transform: 'translate(12px, -50%)' }}
+          className="!h-3 !w-3 !rounded-full !bg-[var(--lpc-primary)] shadow-sm ring-1 ring-white"
         />
       </div>
 

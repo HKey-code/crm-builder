@@ -66,14 +66,14 @@ const CLAUSE_OPERATORS: Record<ClauseType, { value: ClauseOperator; label: strin
 function cloneConfig(cfg: ChoiceConfig): ChoiceConfig {
   return {
     description: cfg.description ?? undefined,
-    defaultTarget: cfg.defaultTarget ?? null,
+    defaultTargetNodeId: cfg.defaultTargetNodeId ?? null,
     groups: (cfg.groups ?? []).map((group) => ({
       id: group.id ?? nanoid(),
       title: group.title ?? '',
+      targetNodeId: group.targetNodeId ?? null,
       rules: (group.rules ?? []).map((rule) => ({
         id: rule.id ?? nanoid(),
         name: rule.name ?? '',
-        target: rule.target ?? null,
         clauses: (rule.clauses ?? []).map((clause) => ({
           id: clause.id ?? nanoid(),
           variable: clause.variable ?? '',
@@ -120,23 +120,55 @@ const getDefaultClause = (available: VariableOption[]): Clause => {
 }
 
 export default function ChoiceEditor({ config, availableVars, nodes, currentNodeId, onChange }: ChoiceEditorProps) {
+  const dbg = React.useCallback((...args: any[]) => console.debug('[ChoiceEditor]', ...args), [])
   const normalized = React.useMemo(() => ensureChoiceConfig(config), [config])
   const [collapsedGroups, setCollapsedGroups] = React.useState<Record<string, boolean>>({})
   const [collapsedRules, setCollapsedRules] = React.useState<Record<string, boolean>>({})
+  const groupsListRef = React.useRef<HTMLDivElement | null>(null)
+  const groupContainerRefs = React.useRef<Record<string, HTMLDivElement | null>>({})
+  const lastAddedGroupIdRef = React.useRef<string | null>(null)
 
   React.useEffect(() => {
-    setCollapsedGroups({})
-    setCollapsedRules({})
+    // If a new group was just added, collapse all others and keep the new one open
+    const newId = lastAddedGroupIdRef.current
+    if (newId) {
+      const next: Record<string, boolean> = {}
+      normalized.groups.forEach((g) => {
+        next[g.id] = g.id !== newId
+      })
+      setCollapsedGroups(next)
+      // Do not reset rule collapse state here
+    }
   }, [normalized.groups.length])
 
   const updateConfig = React.useCallback((updater: (draft: ChoiceConfig) => void) => {
+    const before = normalized.groups?.length ?? 0
     const draft = cloneConfig(normalized)
     updater(draft)
+    const after = draft.groups?.length ?? 0
+    dbg('updateConfig groups', { before, after })
     onChange(draft)
-  }, [normalized, onChange])
+  }, [normalized, onChange, dbg])
+
+  // After a new group is added, scroll it into view and focus its title input
+  React.useLayoutEffect(() => {
+    const id = lastAddedGroupIdRef.current
+    if (!id) return
+    const container = groupsListRef.current
+    const groupEl = groupContainerRefs.current[id]
+    if (container && groupEl) {
+      try { groupEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) } catch {}
+      const input = groupEl.querySelector('input') as HTMLInputElement | null
+      if (input) {
+        requestAnimationFrame(() => input.focus())
+      }
+    }
+    lastAddedGroupIdRef.current = null
+  }, [normalized.groups.length])
 
   const addGroup = () => {
     const newGroupId = nanoid()
+    dbg('addGroup clicked', { prevCount: normalized.groups.length, newGroupId })
     updateConfig((draft) => {
       const idx = draft.groups.length
       const base = createGroup({ id: newGroupId, title: `Group ${idx + 1}` })
@@ -148,6 +180,7 @@ export default function ChoiceEditor({ config, availableVars, nodes, currentNode
       draft.groups.push(base)
     })
     setCollapsedGroups((prev) => ({ ...prev, [newGroupId]: false }))
+    lastAddedGroupIdRef.current = newGroupId
   }
 
   const removeGroup = (groupId: string) => {
@@ -191,7 +224,16 @@ export default function ChoiceEditor({ config, availableVars, nodes, currentNode
       nextRule.clauses = nextRule.clauses.length ? nextRule.clauses : [getDefaultClause(availableVars)]
       group.rules = [...group.rules, nextRule]
     })
-    setCollapsedRules((prev) => ({ ...prev, [newRuleId]: false }))
+    // Collapse all other rules in this group; keep only the new rule expanded
+    setCollapsedRules((prev) => {
+      const next: Record<string, boolean> = { ...prev }
+      const currentGroup = normalized.groups.find((g) => g.id === groupId)
+      if (currentGroup) {
+        currentGroup.rules.forEach((r) => { next[r.id] = true })
+      }
+      next[newRuleId] = false
+      return next
+    })
   }
 
   const moveRule = (groupId: string, ruleId: string, direction: -1 | 1) => {
@@ -252,7 +294,7 @@ export default function ChoiceEditor({ config, availableVars, nodes, currentNode
 
   const updateDefaultTarget = (value: string) => {
     updateConfig((draft) => {
-      draft.defaultTarget = value ? value : null
+      draft.defaultTargetNodeId = value ? value : null
     })
   }
 
@@ -272,12 +314,16 @@ export default function ChoiceEditor({ config, availableVars, nodes, currentNode
     <div className="flex flex-col gap-4">
       <div className="space-y-2">
         <label className="text-sm font-semibold text-[var(--lpc-text)]">Groups</label>
-        <div className="space-y-3 max-h-[460px] overflow-auto pr-2">
+        <div ref={groupsListRef} className="space-y-3 max-h-[460px] overflow-auto pr-2">
           {normalized.groups.map((group, groupIdx) => {
             const collapsed = collapsedGroups[group.id] ?? false
             const displayName = getGroupDisplayName(groupIdx, group)
             return (
-              <div key={group.id} className="rounded border border-[var(--lpc-stroke)] bg-white">
+              <div
+                key={group.id}
+                ref={(el) => { groupContainerRefs.current[group.id] = el }}
+                className="rounded border border-[var(--lpc-stroke)] bg-white"
+              >
                 <div className="flex items-center justify-between gap-2 border-b bg-[var(--lpc-bg)] px-3 py-2">
                   <div className="flex items-center gap-2">
                     <button
@@ -295,10 +341,25 @@ export default function ChoiceEditor({ config, availableVars, nodes, currentNode
                       placeholder={`Group ${groupIdx + 1}`}
                     />
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 text-xs">
+                      <label className="text-[var(--lpc-muted)]">Target</label>
+                      <select
+                        className="rounded border px-2 py-1 text-sm"
+                        value={group.targetNodeId ?? ''}
+                        onChange={(e) => updateGroup(group.id, (g) => { g.targetNodeId = e.target.value || null })}
+                      >
+                        <option value="">(Connect via canvas or choose)</option>
+                        {nodes.filter((n) => n.id !== currentNodeId).map((node) => (
+                          <option key={node.id} value={node.id}>{node.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-1">
                     <button type="button" className="rounded border px-2 py-1 text-xs" onClick={() => moveGroup(group.id, -1)}>↑</button>
                     <button type="button" className="rounded border px-2 py-1 text-xs" onClick={() => moveGroup(group.id, 1)}>↓</button>
                     <button type="button" className="rounded border px-2 py-1 text-xs" onClick={() => removeGroup(group.id)}>×</button>
+                    </div>
                   </div>
                 </div>
 
@@ -335,20 +396,6 @@ export default function ChoiceEditor({ config, availableVars, nodes, currentNode
 
                           {!ruleCollapsed && (
                             <div className="space-y-3 p-3 bg-white/60">
-                              <div className="space-y-1">
-                                <label className="text-xs font-semibold text-[var(--lpc-muted)]">Target</label>
-                                <select
-                                  className="w-full rounded border px-2 py-1 text-sm"
-                                  value={rule.target ?? ''}
-                                  onChange={(e) => updateRule(group.id, rule.id, (r) => { r.target = e.target.value || null })}
-                                >
-                                  <option value="">(Connect via canvas or choose)</option>
-                                  {nodes.filter((n) => n.id !== currentNodeId).map((node) => (
-                                    <option key={node.id} value={node.id}>{node.label}</option>
-                                  ))}
-                                </select>
-                              </div>
-
                               <div className="space-y-2">
                                 <div className="flex items-center justify-between text-xs font-semibold text-[var(--lpc-text)]">
                                   <span>Clauses (AND)</span>
@@ -472,7 +519,7 @@ export default function ChoiceEditor({ config, availableVars, nodes, currentNode
         <label className="text-sm font-semibold text-[var(--lpc-text)]">Default target</label>
         <select
           className="w-full rounded border px-2 py-1 text-sm"
-          value={normalized.defaultTarget ?? ''}
+          value={normalized.defaultTargetNodeId ?? ''}
           onChange={(e) => updateDefaultTarget(e.target.value)}
         >
           <option value="">(Connect via canvas or choose)</option>
@@ -499,6 +546,7 @@ function cloneGroup(group: Group): Group {
   return {
     id: group.id,
     title: group.title,
+    targetNodeId: group.targetNodeId ?? null,
     rules: group.rules.map(cloneRule),
   }
 }
@@ -507,7 +555,6 @@ function cloneRule(rule: Rule): Rule {
   return {
     id: rule.id,
     name: rule.name,
-    target: rule.target ?? null,
     clauses: rule.clauses.map((clause) => ({
       id: clause.id,
       variable: clause.variable,

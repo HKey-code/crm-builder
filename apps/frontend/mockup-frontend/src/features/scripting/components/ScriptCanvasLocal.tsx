@@ -2,7 +2,6 @@
 import * as React from 'react';
 import { useLayoutEffect } from 'react';
 import useUndo from 'use-undo';
-import { nanoid } from 'nanoid';
 
 import { migrateSimpleChoice, ensureChoiceConfig, createChoiceConfig, type ClauseType } from '../types';
 
@@ -29,6 +28,7 @@ import { ReactFlow,
 import TextNode from './nodes/TextNode';
 import ChoiceNode from './nodes/ChoiceNode';
 import InputNode from './nodes/InputNode';
+import DeletableEdge from './edges/DeletableEdge';
 
 export type NodeKind = 'start' | 'text' | 'input' | 'choice' | 'connector' | 'end';
 
@@ -90,6 +90,7 @@ const StartNode = React.memo(function StartNode({ id, data }: { id: string; data
 });
 
 const NODE_TYPES = { start: StartNode, text: TextNode, choice: ChoiceNode, input: InputNode, default: TextNode } as any;
+const EDGE_TYPES = { deletable: DeletableEdge } as any;
 
 /* --------------------------------- Canvas ---------------------------------- */
 
@@ -100,6 +101,7 @@ export default function ScriptCanvasLocal({
   initial?: GraphJSON;
   onChange?: (g: GraphJSON) => void;
 }) {
+  const dbg = React.useCallback((...args: any[]) => console.debug('[Canvas]', ...args), []);
   /** 1) Undoable JSON graph (single source of truth) */
   const initialJSON = React.useMemo<GraphJSON>(() => initial ?? { nodes: [], edges: [] }, [initial]);
   const [graphState, { set: setGraphJSON, undo, redo, canUndo, canRedo }] = useUndo<GraphJSON>(initialJSON);
@@ -244,7 +246,7 @@ export default function ScriptCanvasLocal({
         title: `Group ${idx + 1}`,
         rules: group.rules.map((rule, ridx) => ({
           ...rule,
-          name: `Rule ${ridx + 1}`,
+          name: `Rule ${idx + 1}.${ridx + 1}`,
         })),
       })),
     };
@@ -325,6 +327,7 @@ export default function ScriptCanvasLocal({
 
   React.useEffect(() => {
     let changed = false;
+    let nextEdges = edges;
     const nextNodes = nodes.map((node) => {
       const data: any = node.data ?? {};
       if ((data.kind ?? node.type) !== 'choice') return node;
@@ -338,6 +341,46 @@ export default function ScriptCanvasLocal({
       }
       if (!needsUpdate && updatedConfig === data.choice) return node
       changed = true
+      // Edge migration: remove rule-level edges and ensure group/default edges match config
+      try {
+        const groupIds = new Set((updatedConfig.groups ?? []).map((g: any) => g.id))
+        groupIds.add('__default__')
+        // Drop edges from this node that point to rule ids (non-group handles)
+        nextEdges = nextEdges.filter((e) => e.source !== node.id || !e.sourceHandle || groupIds.has(String(e.sourceHandle)))
+        // Ensure one edge per group if targetNodeId present
+        const outgoingFromNode = new Map<string, any>()
+        nextEdges.filter((e) => e.source === node.id && !!e.sourceHandle).forEach((e) => outgoingFromNode.set(String(e.sourceHandle), e))
+        for (const g of updatedConfig.groups ?? []) {
+          const desiredTarget = g.targetNodeId ?? null
+          const existing = outgoingFromNode.get(g.id)
+          if (desiredTarget && (!existing || existing.target !== desiredTarget)) {
+            // Add/replace edge for this group
+            const newEdge = {
+              id: crypto.randomUUID(),
+              source: node.id,
+              target: desiredTarget,
+              label: g.title ?? undefined,
+              sourceHandle: g.id,
+              type: 'deletable',
+            } as any
+            nextEdges = [...nextEdges.filter((e) => !(e.source === node.id && e.sourceHandle === g.id)), newEdge]
+          }
+        }
+        // Default branch edge
+        const desiredDefault = updatedConfig.defaultTargetNodeId ?? null
+        const existingDefault = nextEdges.find((e) => e.source === node.id && e.sourceHandle === '__default__')
+        if (desiredDefault && (!existingDefault || existingDefault.target !== desiredDefault)) {
+          const newDefault = {
+            id: crypto.randomUUID(),
+            source: node.id,
+            target: desiredDefault,
+            label: undefined,
+            sourceHandle: '__default__',
+            type: 'deletable',
+          } as any
+          nextEdges = [...nextEdges.filter((e) => !(e.source === node.id && e.sourceHandle === '__default__')), newDefault]
+        }
+      } catch {}
       return {
         ...node,
         data: {
@@ -351,7 +394,7 @@ export default function ScriptCanvasLocal({
       }
     });
     if (!changed) return;
-    const next = toJSON(nextNodes, edges);
+    const next = toJSON(nextNodes, nextEdges);
     if (graphsEqual(graphJSON, next)) return;
     setGraphJSON(next);
   }, [nodes, edges, graphJSON, setGraphJSON]);
@@ -376,19 +419,22 @@ export default function ScriptCanvasLocal({
       const choice: any | undefined = anyEv?.detail?.choice;
       if (!id) return;
       let nextEdges = edges;
+      const beforeNode = nodes.find(n => n.id === id);
+      const beforeData: any = beforeNode?.data ?? {};
+      const beforeGroups = Array.isArray(beforeData?.choice?.groups) ? beforeData.choice.groups.length : undefined;
       const nextNodes = nodes.map(n => {
         if (n.id !== id) return n;
         const current = n.data ?? {};
         let effectiveChoice = choice !== undefined ? ensureChoiceConfig(choice) : ensureChoiceConfig((current as any).choice ?? {});
         if (effectiveChoice) {
-          const ruleIds = new Set(effectiveChoice.groups.flatMap((group: any) => (group.rules ?? []).map((r: any) => r.id)));
-          ruleIds.add('__default__');
+          const groupIds = new Set(effectiveChoice.groups.map((g: any) => g.id));
+          groupIds.add('__default__');
           nextEdges = nextEdges
-            .filter((edge) => edge.source !== id || !edge.sourceHandle || ruleIds.has(String(edge.sourceHandle)))
+            .filter((edge) => edge.source !== id || !edge.sourceHandle || groupIds.has(String(edge.sourceHandle)))
             .map((edge) => {
               if (edge.source !== id || !edge.sourceHandle) return edge;
               if (edge.sourceHandle === '__default__') return edge;
-              const nextLabel = effectiveChoice.groups.flatMap((g: any) => g.rules ?? []).find((r: any) => r.id === edge.sourceHandle)?.name;
+              const nextLabel = effectiveChoice.groups.find((g: any) => g.id === edge.sourceHandle)?.title;
               return nextLabel ? { ...edge, label: nextLabel } : edge;
             });
         }
@@ -423,6 +469,10 @@ export default function ScriptCanvasLocal({
       const next = toJSON(nextNodes, nextEdges);
       if (graphsEqual(graphJSON, next)) return;
       setGraphJSON(next);
+      const afterNode = nextNodes.find(n => n.id === id);
+      const afterData: any = afterNode?.data ?? {};
+      const afterGroups = Array.isArray(afterData?.choice?.groups) ? afterData.choice.groups.length : undefined;
+      dbg('rename applied', { id, beforeGroups, afterGroups });
     };
     window.addEventListener('script-canvas-rename', handler as EventListener);
     return () => window.removeEventListener('script-canvas-rename', handler as EventListener);
@@ -463,28 +513,24 @@ export default function ScriptCanvasLocal({
     [nodes, edges, graphJSON, setGraphJSON]
   );
 
-  const onEdgesChange = React.useCallback(
-    (changes: EdgeChange[]) => {
-      const nextEdges = applyEdgeChanges(changes, edges);
+  const syncChoiceTargets = React.useCallback(
+    (nextEdges: RFEdge[]) => {
       let touched = false;
       const nextNodes = nodes.map((node) => {
         const ndata: any = node.data ?? {};
         const choiceCfg = ensureChoiceConfig(ndata.choice);
         let changed = false;
-        const updatedGroups = choiceCfg.groups.map((group: any) => ({
-          ...group,
-          rules: (group.rules ?? []).map((rule: any) => {
-            const edgeForRule = nextEdges.find((edge) => edge.source === node.id && edge.sourceHandle === rule.id);
-            const nextTarget = edgeForRule?.target ?? null;
-            if (rule.target !== nextTarget) {
-              changed = true;
-              return { ...rule, target: nextTarget };
-            }
-            return rule;
-          }),
-        }));
+        const updatedGroups = choiceCfg.groups.map((group: any) => {
+          const edgeForGroup = nextEdges.find((edge) => edge.source === node.id && edge.sourceHandle === group.id);
+          const nextTarget = edgeForGroup?.target ?? null;
+          if ((group.targetNodeId ?? null) !== nextTarget) {
+            changed = true;
+            return { ...group, targetNodeId: nextTarget };
+          }
+          return group;
+        });
         const defaultEdge = nextEdges.find((edge) => edge.source === node.id && edge.sourceHandle === '__default__');
-        if ((choiceCfg.defaultTarget ?? null) !== (defaultEdge?.target ?? null)) {
+        if ((choiceCfg.defaultTargetNodeId ?? null) !== (defaultEdge?.target ?? null)) {
           changed = true;
         }
         if (!changed) return node;
@@ -496,16 +542,50 @@ export default function ScriptCanvasLocal({
             choice: {
               ...choiceCfg,
               groups: updatedGroups,
-              defaultTarget: defaultEdge?.target ?? null,
+              defaultTargetNodeId: defaultEdge?.target ?? null,
             },
           },
         };
       });
+      return { nextNodes, touched };
+    },
+    [nodes]
+  );
+
+  const onEdgesChange = React.useCallback(
+    (changes: EdgeChange[]) => {
+      const nextEdges = applyEdgeChanges(changes, edges);
+      const { nextNodes, touched } = syncChoiceTargets(nextEdges);
       const next = toJSON(nextNodes, nextEdges);
       if (!touched && graphsEqual(graphJSON, next)) return;
       setGraphJSON(next);
     },
-    [nodes, edges, graphJSON, setGraphJSON]
+    [edges, graphJSON, setGraphJSON, syncChoiceTargets]
+  );
+
+  const handleRemoveEdge = React.useCallback(
+    (edgeId: string) => {
+      const nextEdges = edges.filter((edge) => edge.id !== edgeId);
+      if (nextEdges.length === edges.length) return;
+      const { nextNodes, touched } = syncChoiceTargets(nextEdges);
+      const next = toJSON(nextNodes, nextEdges);
+      if (!touched && graphsEqual(graphJSON, next)) return;
+      setGraphJSON(next);
+    },
+    [edges, graphJSON, setGraphJSON, syncChoiceTargets]
+  );
+
+  const edgesWithDelete = React.useMemo(
+    () =>
+      edges.map((edge) => ({
+        ...edge,
+        type: 'deletable',
+        data: {
+          ...(edge.data ?? {}),
+          onDelete: () => handleRemoveEdge(edge.id),
+        },
+      })),
+    [edges, handleRemoveEdge]
   );
 
   const onConnect = React.useCallback(
@@ -513,43 +593,32 @@ export default function ScriptCanvasLocal({
       const sourceNode = nodes.find((n) => n.id === c.source);
       const sourceData: any = sourceNode?.data ?? {};
       const choiceCfg = ensureChoiceConfig(sourceData?.choice ?? {});
-      const allRules = choiceCfg.groups.flatMap((group: any) => group.rules ?? []);
-      const matchedRule = typeof c.sourceHandle === 'string'
-        ? allRules.find((r: any) => r.id === c.sourceHandle)
+      const groups = choiceCfg.groups ?? [];
+      const matchedGroup = typeof c.sourceHandle === 'string'
+        ? groups.find((g: any) => g.id === c.sourceHandle)
         : undefined;
 
       let nextNodes = nodes;
-      if (matchedRule) {
-        const updatedGroups = choiceCfg.groups.map((group: any) => ({
-          ...group,
-          rules: (group.rules ?? []).map((r: any) => (r.id === matchedRule.id ? { ...r, target: c.target ?? null } : r)),
-        }));
-        if (JSON.stringify(updatedGroups) !== JSON.stringify(choiceCfg.groups)) {
-          nextNodes = nodes.map((n) => {
-            if (n.id !== sourceNode?.id) return n;
-            return {
-              ...n,
-              data: {
-                ...(n.data ?? {}),
-                choice: {
-                  ...choiceCfg,
-                  groups: updatedGroups,
-                },
-              },
-            };
-          });
+      if (matchedGroup) {
+        const updatedGroups = groups.map((g: any) => (g.id === matchedGroup.id ? { ...g, targetNodeId: c.target ?? null } : g));
+        if (JSON.stringify(updatedGroups) !== JSON.stringify(groups)) {
+          nextNodes = nodes.map((n) => (n.id === sourceNode?.id ? { ...n, data: { ...(n.data ?? {}), choice: { ...choiceCfg, groups: updatedGroups } } } : n));
         }
       } else if (c.sourceHandle === '__default__') {
-        const nextCfg = { ...choiceCfg, defaultTarget: c.target ?? null };
+        const nextCfg = { ...choiceCfg, defaultTargetNodeId: c.target ?? null };
         nextNodes = nodes.map((n) => (n.id === sourceNode?.id ? { ...n, data: { ...(n.data ?? {}), choice: nextCfg } } : n));
       }
 
       const connectionWithLabel = {
         ...c,
-        ...(matchedRule && !(c as any).label ? { label: matchedRule.name } : {}),
+        type: 'deletable',
+        ...(matchedGroup && !(c as any).label ? { label: (matchedGroup.title && matchedGroup.title.trim().length > 0) ? matchedGroup.title : undefined } : {}),
       } as Connection & { label?: string };
 
-      const nextEdges = addEdge(connectionWithLabel, edges);
+      const nextEdges = addEdge(connectionWithLabel, edges).map((edge) => ({
+        ...edge,
+        type: 'deletable',
+      }));
       const next = toJSON(nextNodes, nextEdges);
       if (graphsEqual(graphJSON, next)) return;
       setGraphJSON(next);
@@ -590,27 +659,36 @@ export default function ScriptCanvasLocal({
     });
 
     const detail = sel
-      ? {
-          id: sel.id as string,
-          kind: (sel as any)?.data?.kind ?? (sel.type ?? 'text'),
-          name: (sel as any)?.data?.label ?? (sel as any)?.data?.title ?? '',
-          content: (sel as any)?.data?.content ?? '',
-          // input
-          inputType: (sel as any)?.data?.inputType ?? undefined,
-          placeholder: (sel as any)?.data?.placeholder ?? undefined,
-          varName: (sel as any)?.data?.varName ?? undefined,
-          required: (sel as any)?.data?.required ?? undefined,
-          options: (sel as any)?.data?.options ?? undefined,
-          // choice
-          title: (sel as any)?.data?.title ?? undefined,
-          varNames: (sel as any)?.data?.varNames ?? undefined,
-          matchMode: (sel as any)?.data?.matchMode ?? undefined,
-          hasDefault: (sel as any)?.data?.hasDefault ?? undefined,
-          choice: (sel as any)?.data?.choice ?? undefined,
-          availableVars,
-          graphNodes: graphNodesSummary,
-        }
+      ? (() => {
+          // Authoritative lookup: prefer current state for selected node data
+          const auth = nodes.find(n => n.id === sel.id) ?? sel;
+          const adata: any = (auth as any).data ?? {};
+          return {
+            id: String(auth.id),
+            kind: adata.kind ?? (auth.type ?? 'text'),
+            name: adata.label ?? adata.title ?? '',
+            content: adata.content ?? '',
+            // input
+            inputType: adata.inputType ?? undefined,
+            placeholder: adata.placeholder ?? undefined,
+            varName: adata.varName ?? undefined,
+            required: adata.required ?? undefined,
+            options: adata.options ?? undefined,
+            // choice
+            title: adata.title ?? undefined,
+            varNames: adata.varNames ?? undefined,
+            matchMode: adata.matchMode ?? undefined,
+            hasDefault: adata.hasDefault ?? undefined,
+            choice: adata.choice ?? undefined,
+            availableVars,
+            graphNodes: graphNodesSummary,
+          };
+        })()
       : null;
+    const choiceGroups = detail && Array.isArray((detail as any)?.choice?.groups)
+      ? (detail as any).choice.groups.length
+      : undefined;
+    dbg('dispatch select', { id: detail?.id, groups: choiceGroups });
     setSelectedId(detail?.id ?? null);
     window.dispatchEvent(new CustomEvent('script-canvas-select', { detail }));
   }, [nodes]);
@@ -631,15 +709,16 @@ export default function ScriptCanvasLocal({
     <div ref={paneRef} style={{ width: '100%', height: '100%' }}>
       <ReactFlow
         nodes={nodes}
-        edges={edges}
+        edges={edgesWithDelete}
         nodeTypes={NODE_TYPES}
+        edgeTypes={EDGE_TYPES}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onNodeDragStop={onNodeDragStop}
         onSelectionChange={onSelectionChange}
         defaultEdgeOptions={{
-          type: 'default',
+          type: 'deletable',
           style: { stroke: 'var(--lpc-primary)', strokeWidth: 2 },
           markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--lpc-primary)', width: 18, height: 18 },
         }}
@@ -725,7 +804,7 @@ export function fromJSON(g: GraphJSON): { nodes: RFNode[]; edges: RFEdge[] } {
       label: e.label ?? undefined,
       sourceHandle: e.sourceHandle ?? undefined,
       hidden: false,
-      type: 'default',
+      type: 'deletable',
     })),
   };
 }

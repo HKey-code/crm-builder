@@ -44,6 +44,7 @@ export type Clause = {
 export type Rule = {
   id: string
   name?: string
+  /** @deprecated Rule-level targets are removed. Use Group.targetNodeId */
   target?: string | null
   clauses: Clause[]
 }
@@ -51,12 +52,15 @@ export type Rule = {
 export type Group = {
   id: string
   title?: string
+  targetNodeId?: string | null
   rules: Rule[]
 }
 
 export type ChoiceConfig = {
   description?: string
   groups: Group[]
+  defaultTargetNodeId?: string | null
+  /** @deprecated Use defaultTargetNodeId */
   defaultTarget?: string | null
 }
 
@@ -67,10 +71,10 @@ export function migrateSimpleChoice(varName: string, options: { label: string; v
       {
         id: nanoid(),
         title: 'Group 1',
+        targetNodeId: null,
         rules: options.map((opt, index) => ({
           id: nanoid(),
           name: `Rule 1.${index + 1}`,
-          target: undefined,
           clauses: [
             {
               id: nanoid(),
@@ -83,7 +87,7 @@ export function migrateSimpleChoice(varName: string, options: { label: string; v
         })),
       },
     ],
-    defaultTarget: null,
+    defaultTargetNodeId: null,
   }
 }
 
@@ -102,7 +106,6 @@ export function createRule(partial?: Partial<Rule>): Rule {
   return {
     id: nanoid(),
     name: 'Rule',
-    target: null,
     clauses: [createClause()],
     ...partial,
   }
@@ -112,6 +115,7 @@ export function createGroup(partial?: Partial<Group>): Group {
   return {
     id: nanoid(),
     title: 'Group',
+    targetNodeId: null,
     rules: [createRule({ name: 'Rule 1.1' })],
     ...partial,
   }
@@ -124,17 +128,17 @@ export function createChoiceConfig(): ChoiceConfig {
       {
         id: nanoid(),
         title: 'Group 1',
+        targetNodeId: null,
         rules: [
           {
             id: nanoid(),
-            name: 'Rule 1',
-            target: null,
+            name: 'Rule 1.1',
             clauses: [createClause()],
           },
         ],
       },
     ],
-    defaultTarget: null,
+    defaultTargetNodeId: null,
   }
 }
 
@@ -143,19 +147,11 @@ export function ensureChoiceConfig(input: any): ChoiceConfig {
 
   const maybeGroups = Array.isArray((input as any).groups) ? (input as any).groups : null
   if (maybeGroups) {
-    const groups: Group[] = maybeGroups.map((group: any, gIdx: number) => ({
-      id: typeof group?.id === 'string' ? group.id : nanoid(),
-      title: typeof group?.title === 'string' ? group.title : `Group ${gIdx + 1}`,
-      rules: Array.isArray(group?.rules)
+    const groups: Group[] = maybeGroups.map((group: any, gIdx: number) => {
+      const rules: Rule[] = Array.isArray(group?.rules)
         ? group.rules.map((rule: any, rIdx: number) => ({
             id: typeof rule?.id === 'string' ? rule.id : nanoid(),
             name: typeof rule?.name === 'string' ? rule.name : `Rule ${rIdx + 1}`,
-            target:
-              typeof rule?.target === 'string'
-                ? rule.target
-                : rule?.target === null
-                  ? null
-                  : undefined,
             clauses: Array.isArray(rule?.clauses) && rule.clauses.length > 0
               ? rule.clauses.map((clause: any) => ({
                   id: typeof clause?.id === 'string' ? clause.id : nanoid(),
@@ -166,18 +162,51 @@ export function ensureChoiceConfig(input: any): ChoiceConfig {
                 }))
               : [createClause()],
           }))
-        : [createRule()],
-    }))
+        : [createRule()]
+
+      let targetNodeId: string | null | undefined =
+        typeof group?.targetNodeId === 'string'
+          ? group.targetNodeId
+          : group?.targetNodeId === null
+            ? null
+            : undefined
+
+      if (targetNodeId === undefined) {
+        const legacyTargets = (Array.isArray(group?.rules) ? group.rules : [])
+          .map((r: any) => (typeof r?.target === 'string' ? r.target : null))
+          .filter((t: string | null): t is string => !!t)
+        const unique = Array.from(new Set(legacyTargets))
+        if (unique.length === 1) {
+          targetNodeId = unique[0]
+        } else if (unique.length > 1) {
+          targetNodeId = unique[0]
+          console.warn('[ChoiceConfig] Mixed rule targets found; using first. Please re-wire at group level.')
+        } else {
+          targetNodeId = null
+        }
+      }
+
+      return {
+        id: typeof group?.id === 'string' ? group.id : nanoid(),
+        title: typeof group?.title === 'string' ? group.title : `Group ${gIdx + 1}`,
+        targetNodeId,
+        rules,
+      }
+    })
 
     return {
       description: typeof input.description === 'string' ? input.description : undefined,
       groups,
-      defaultTarget:
-        typeof input.defaultTarget === 'string'
-          ? input.defaultTarget
-          : input.defaultTarget === null
+      defaultTargetNodeId:
+        typeof (input as any).defaultTargetNodeId === 'string'
+          ? (input as any).defaultTargetNodeId
+          : (input as any).defaultTargetNodeId === null
             ? null
-            : undefined,
+            : typeof (input as any).defaultTarget === 'string'
+              ? (input as any).defaultTarget
+              : (input as any).defaultTarget === null
+                ? null
+                : undefined,
     }
   }
 
@@ -187,6 +216,18 @@ export function ensureChoiceConfig(input: any): ChoiceConfig {
     const group: Group = {
       id: nanoid(),
       title: typeof input.title === 'string' ? input.title : 'Group 1',
+      targetNodeId: (() => {
+        const targets = legacyRules
+          .map((legacy: any) => (typeof legacy?.target === 'string' ? legacy.target : null))
+          .filter((t: string | null): t is string => !!t)
+        const uniq = Array.from(new Set(targets))
+        if (uniq.length === 1) return uniq[0]
+        if (uniq.length > 1) {
+          console.warn('[ChoiceConfig] Mixed rule targets found; using first. Please re-wire at group level.')
+          return uniq[0]
+        }
+        return null
+      })(),
       rules: legacyRules.map((legacy: any, idx: number) => {
         const clauses: Clause[] = Array.isArray(legacy?.groups)
           ? legacy.groups.flatMap((legacyGroup: any) =>
@@ -204,7 +245,6 @@ export function ensureChoiceConfig(input: any): ChoiceConfig {
         return {
           id: typeof legacy?.id === 'string' ? legacy.id : nanoid(),
           name: typeof legacy?.label === 'string' ? legacy.label : `Rule ${idx + 1}`,
-          target: typeof legacy?.target === 'string' ? legacy.target : null,
           clauses: clauses.length > 0 ? clauses : [createClause()],
         }
       }),
@@ -213,7 +253,12 @@ export function ensureChoiceConfig(input: any): ChoiceConfig {
     return {
       description: typeof input.description === 'string' ? input.description : undefined,
       groups: [group],
-      defaultTarget: typeof input.defaultTarget === 'string' ? input.defaultTarget : null,
+      defaultTargetNodeId:
+        typeof (input as any).defaultTargetNodeId === 'string'
+          ? (input as any).defaultTargetNodeId
+          : typeof (input as any).defaultTarget === 'string'
+            ? (input as any).defaultTarget
+            : null,
     }
   }
 

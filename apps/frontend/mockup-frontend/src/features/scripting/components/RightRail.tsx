@@ -23,12 +23,15 @@ const LS = {
 }
 
 export default function RightRail({ selectedNode, onPatch, onCloseMobile }: RightRailProps) {
+  const dbg = React.useCallback((...args: any[]) => console.debug('[RightRail]', ...args), [])
   const [collapsed, setCollapsed] = React.useState<boolean>(() => localStorage.getItem(LS.collapsed) === '1')
   const [tab, setTab] = React.useState<TabKey>(() => (localStorage.getItem(LS.tab) as TabKey) || 'properties')
   const [width, setWidth] = React.useState<number>(() => {
     const saved = Number(localStorage.getItem(LS.width))
     return Number.isFinite(saved) && saved >= 300 && saved <= 520 ? saved : 360
   })
+
+  const lastChoiceNodeIdRef = React.useRef<string | null>(null)
 
   React.useEffect(() => localStorage.setItem(LS.collapsed, collapsed ? '1' : '0'), [collapsed])
   React.useEffect(() => localStorage.setItem(LS.tab, tab), [tab])
@@ -122,8 +125,15 @@ export default function RightRail({ selectedNode, onPatch, onCloseMobile }: Righ
       const ensured = ensureChoiceConfig(selectedNode.choice ?? createChoiceConfig())
       setChoiceDraft((prev) => {
         if (prev && JSON.stringify(prev) === JSON.stringify(ensured)) return prev
+        const prevGroups = prev ? prev.groups.length : undefined
+        if (lastChoiceNodeIdRef.current === selectedNode.id && typeof prevGroups === 'number' && ensured.groups.length < prevGroups) {
+          dbg('choiceDraft stale ignored', { id: selectedNode.id, prevGroups, nextGroups: ensured.groups.length })
+          return prev
+        }
+        dbg('choiceDraft set from selectedNode', { groups: ensured.groups.length, prevGroups, id: selectedNode?.id })
         return ensured
       })
+      lastChoiceNodeIdRef.current = selectedNode.id
     } else {
       setChoiceDraft(null)
     }
@@ -337,6 +347,7 @@ export default function RightRail({ selectedNode, onPatch, onCloseMobile }: Righ
                           currentNodeId={selectedNode.id}
                           onChange={(next) => {
                             setChoiceDraft(next)
+                            dbg('onChange from ChoiceEditor', { groups: next.groups.length })
                             sendPatch({ choice: next })
                           }}
                         />

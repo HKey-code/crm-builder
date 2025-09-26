@@ -62,6 +62,7 @@ function Palette() {
 function PageInner() {
   const selectNodeId = useScriptStore((s) => s.selectNodeId);
   const updateNode   = useScriptStore((s) => s.updateNode);
+  const dbg = React.useCallback((...args: any[]) => console.debug('[Page]', ...args), []);
 
   // Local selection from the canvas (preferred when using ScriptCanvasLocal)
   const [selectedLocal, setSelectedLocal] = React.useState<{
@@ -87,6 +88,11 @@ function PageInner() {
     const handler = (ev: Event) => {
       const anyEv = ev as any;
       const detail = anyEv?.detail ?? null;
+      dbg('script-canvas-select', {
+        id: detail?.id,
+        kind: detail?.kind,
+        groups: Array.isArray(detail?.choice?.groups) ? detail.choice.groups.length : undefined,
+      });
       setSelectedLocal(detail);
     };
     window.addEventListener('script-canvas-select', handler as EventListener);
@@ -98,12 +104,14 @@ function PageInner() {
     (s) => (selectNodeId ? s.doc.present.nodes.find((n) => n.id === selectNodeId) ?? null : null)
   );
 
+  // Intentionally no store-change log to reduce noise
+
   const fallbackSelectedNode = React.useMemo(() => {
     if (!selectedNodeFromStore) return null;
     const data = (selectedNodeFromStore.data ?? {}) as any;
     return {
       id: selectedNodeFromStore.id,
-      kind: data?.kind ?? selectedNodeFromStore.type ?? 'text',
+      kind: data?.kind ?? ((selectedNodeFromStore as any).type ?? 'text'),
       name: data?.label ?? data?.title ?? '',
       content: data?.content ?? '',
       title: data?.title ?? undefined,
@@ -118,6 +126,15 @@ function PageInner() {
       choice: data?.choice ? ensureChoiceConfig(data.choice) : undefined,
     };
   }, [selectedNodeFromStore]);
+
+  const selectedForRail = React.useMemo(() => {
+    const src = selectedLocal ? 'local' : 'store';
+    const groups = selectedLocal
+      ? (Array.isArray((selectedLocal as any)?.choice?.groups) ? (selectedLocal as any).choice.groups.length : undefined)
+      : (Array.isArray((fallbackSelectedNode as any)?.choice?.groups) ? (fallbackSelectedNode as any).choice.groups.length : undefined);
+    dbg('RightRail source', { src, id: (selectedLocal ?? fallbackSelectedNode)?.id, groups });
+    return selectedLocal ?? fallbackSelectedNode;
+  }, [selectedLocal, fallbackSelectedNode, dbg]);
 
   return (
     <div className="flex h-full w-full flex-col">
@@ -176,7 +193,7 @@ function PageInner() {
         {/* Right rail column */}
         <aside className="shrink-0">
           <RightRail
-            selectedNode={selectedLocal ?? fallbackSelectedNode}
+            selectedNode={selectedForRail}
             onPatch={(next) => {
               if (!next) return;
               if (selectedLocal) {
@@ -215,6 +232,27 @@ function PageInner() {
                 if ('required' in next) detail.required = next.required;
                 if ('choice' in next) detail.choice = next.choice;
                 window.dispatchEvent(new CustomEvent('script-canvas-rename', { detail }));
+
+                // Keep Zustand store in sync so fallback selection matches local edits
+                const dataPatch: any = {};
+                if ('name' in next) {
+                  dataPatch.label = next.name;
+                  dataPatch.title = next.title ?? next.name;
+                }
+                if ('content' in next) dataPatch.content = next.content;
+                if ('title' in next) dataPatch.title = next.title;
+                if ('varNames' in next) dataPatch.varNames = next.varNames;
+                if ('matchMode' in next) dataPatch.matchMode = next.matchMode;
+                if ('options' in next) dataPatch.options = next.options;
+                if ('hasDefault' in next) dataPatch.hasDefault = next.hasDefault;
+                if ('inputType' in next) dataPatch.inputType = next.inputType;
+                if ('placeholder' in next) dataPatch.placeholder = next.placeholder;
+                if ('varName' in next) dataPatch.varName = next.varName;
+                if ('required' in next) dataPatch.required = next.required;
+                if ('choice' in next) dataPatch.choice = next.choice;
+                if (Object.keys(dataPatch).length > 0) {
+                  updateNode(next.id, { data: dataPatch } as any);
+                }
               } else {
                 const dataPatch: any = {
                   ...(typeof next.name === 'string' ? { label: next.name, title: next.title ?? next.name } : {}),
