@@ -1,59 +1,153 @@
+// ---- single generator + datasource ----
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  schemas  = ["core", "ui", "ops", "catalog", "service", "sales", "marketing", "portal", "workflow", "automation", "training", "security", "guidance", "permits", "public_health"]
 }
 
-model Role {
-  id          String   @id @default(uuid())
-  name        String   @unique
-  description String?
-  createdAt   DateTime @default(now())
-  users       User[]
-  roleAssignments RoleAssignment[]
-  permissionRules PermissionRule[]
+// ---- enums (single copy) ----
+enum LicenseType {
+  SMART_SERVICE
+  SMART_SALES
+  SMART_GRANTS
+  @@schema("core")
 }
 
+enum UserType {
+  HUMAN
+  AI
+  SERVICE
+  @@schema("core")
+}
+
+enum UserStatus {
+  active
+  disabled
+  pending
+  @@schema("core")
+}
+
+enum SeatStatus {
+  active
+  expired
+  suspended
+  @@schema("core")
+}
+
+// ---------- CORE ----------
 model Tenant {
   id              String   @id @default(uuid())
-  name            String
-  supportedLocales String[]
-  defaultLocale   String   @default("en")
+  name            String   @unique
   deploymentStack String?
   isIsolated      Boolean  @default(false)
+  defaultLocale   String?  @default("en")
   appVersion      String?
   createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  licenses        TenantLicense[]
   users           User[]
   roleAssignments RoleAssignment[]
   customers       Customer[]
-  pages           Page[]
-  layouts         Layout[]
-  componentTypes  ComponentType[]
-  dataSources     DataSource[]
-  fieldDefinitions FieldDefinition[]
   permissionRules PermissionRule[]
-  contacts        Contact[]
-  moduleLicenses  ModuleLicense[]
-  opportunities   Opportunity[]
-  cases           Case[]
-  marketingCampaigns MarketingCampaign[]
-  portalActivities PortalActivity[]
+
+  @@schema("core")
+}
+
+model TenantLicense {
+  id           String       @id @default(uuid())
+  tenantId     String
+  licenseType  LicenseType
+  status       String
+  activatedAt  DateTime
+  expiresAt    DateTime?
+  metadata     Json?
+  totalSeats   Int?
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id])
+  userLicenses UserTenantLicense[]
+
+  @@unique([tenantId, licenseType], name: "tenantId_licenseType")
+  @@schema("core")
 }
 
 model User {
-  id              String   @id @default(uuid())
-  email           String   @unique
+  id              String      @id @default(uuid())
+  email           String      @unique
   name            String?
-  preferredLanguage String?
-  spokenLanguages String[]
-  roleId          String
-  role            Role     @relation(fields: [roleId], references: [id])
-  tenantId        String
-  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId        String?
+  isSystemUser    Boolean     @default(false)
+  userType        UserType    @default(HUMAN)
+  status          UserStatus  @default(active)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  tenant          Tenant?     @relation(fields: [tenantId], references: [id])
+  userLicenses    UserTenantLicense[]
   roleAssignments RoleAssignment[]
+
+  @@schema("core")
+}
+
+model UserTenantLicense {
+  id              String     @id @default(uuid())
+  userId          String
+  tenantLicenseId String
+  roleId          String
+  status          SeatStatus @default(active)
+  assignedAt      DateTime   @default(now())
+  expiresAt       DateTime?
+  assignedBy      String?
+  notes           String?
+
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenantLicense   TenantLicense @relation(fields: [tenantLicenseId], references: [id], onDelete: Cascade)
+  role            Role          @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tenantLicenseId], name: "userId_tenantLicenseId")
+  @@index([userId, status, expiresAt])
+  @@index([tenantLicenseId])
+  @@schema("core")
+}
+
+model Role {
+  id              String   @id @default(uuid())
+  name            String   @unique
+  description     String?
+  isGlobal        Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  roleAssignments RoleAssignment[]
+  permissionRules PermissionRule[]
+  permissionSets  RolePermissionSet[]
+  userLicenses    UserTenantLicense[]
+
+  @@schema("core")
+}
+
+model PermissionSet {
+  id          String            @id @default(uuid())
+  name        String
+  description String?
+  roleLinks   RolePermissionSet[]
+
+  @@schema("core")
+}
+
+model RolePermissionSet {
+  roleId          String
+  permissionSetId String
+
+  role          Role          @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permissionSet PermissionSet @relation(fields: [permissionSetId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionSetId])
+  @@schema("core")
 }
 
 model RoleAssignment {
@@ -63,276 +157,1068 @@ model RoleAssignment {
   scope     String
   label     String
   roleId    String
-  role      Role     @relation(fields: [roleId], references: [id])
   createdAt DateTime @default(now())
 
-  user      User     @relation(fields: [userId], references: [id])
-  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  role   Role   @relation(fields: [roleId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@schema("core")
 }
 
 model Customer {
-  id               String   @id @default(uuid())
-  name             String
+  id                String   @id @default(uuid())
+  name              String
   preferredLanguage String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  tenantId         String
-  tenant           Tenant   @relation(fields: [tenantId], references: [id])
-  contacts         Contact[]
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  tenantId          String
+  contacts          Contact[]
+
+  tenant            Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@schema("core")
 }
 
-// UI Engine Models
+model Contact {
+  id             String   @id @default(uuid())
+  customerId     String
+  customer       Customer @relation(fields: [customerId], references: [id])
+  firstName      String
+  lastName       String
+  email          String
+  phone          String?
+  title          String?
+  department     String?
+  isPrimary      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  tenantId       String
 
+  opportunities   Opportunity[]
+  cases           Case[]
+  marketingCampaigns MarketingCampaign[]
+  portalActivities   PortalActivity[]
+
+  @@unique([email, tenantId])
+  @@schema("core")
+}
+
+model Opportunity {
+  id                String   @id @default(uuid())
+  contactId         String
+  partyId           String?
+  name              String
+  amount            Decimal  @db.Decimal(10, 2)
+  stage             String
+  probability       Int
+  expectedCloseDate DateTime?
+  actualCloseDate   DateTime?
+  description       String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  tenantId          String
+
+  contact Contact @relation(fields: [contactId], references: [id])
+  party   Party?  @relation(fields: [partyId], references: [id])
+
+  @@schema("sales")
+}
+
+enum CaseType {
+  GENERIC
+  PERMIT
+  NEWBORN
+  DMV
+  OTHER
+  @@schema("service")
+}
+
+model Case {
+  id               String   @id @default(uuid())
+  tenantId         String
+  caseNumber       String   @unique
+  caseType         CaseType @default(GENERIC)
+  subjectPartyId   String?
+  contactId        String?
+  openedByUserId   String?
+  assignedToUserId String?
+  priority         String?
+  channel          String?
+  jurisdiction     String?
+  status           String   @default("open")
+  details          Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  closedAt         DateTime?
+
+  events       CaseEvent[]
+  attachments  CaseAttachment[]
+  subjectParty Party? @relation(fields: [subjectPartyId], references: [id])
+  contact      Contact? @relation(fields: [contactId], references: [id])
+  permitExt    PermitCaseExt?
+
+  @@index([tenantId, caseType, status])
+  @@index([subjectPartyId])
+  @@schema("service")
+}
+
+model CaseEvent {
+  id        String   @id @default(uuid())
+  caseId    String
+  kind      String
+  payload   Json?
+  createdAt DateTime @default(now())
+  kase      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([caseId, createdAt])
+  @@schema("service")
+}
+
+model CaseAttachment {
+  id        String   @id @default(uuid())
+  caseId    String
+  url       String
+  label     String?
+  createdAt DateTime @default(now())
+  kase      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([caseId])
+  @@schema("service")
+}
+
+model MarketingCampaign {
+  id        String   @id @default(uuid())
+  name      String
+  type      String
+  status    String
+  startDate DateTime?
+  endDate   DateTime?
+  budget    Decimal? @db.Decimal(10, 2)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tenantId  String
+  contacts  Contact[]
+
+  @@schema("marketing")
+}
+
+model PortalActivity {
+  id           String   @id @default(uuid())
+  contactId    String
+  activityType String
+  description  String
+  metadata     Json?
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
+  tenantId     String
+
+  contact Contact @relation(fields: [contactId], references: [id])
+
+  @@schema("portal")
+}
+
+model SLOMetric {
+  id          String    @id @default(uuid())
+  latencyMs   Int
+  success     Boolean
+  errorCode   String?
+  userId      String?
+  tenantId    String?
+  licenseType String?
+  timestamp   DateTime  @default(now())
+
+  @@index([timestamp])
+  @@index([success, timestamp])
+  @@index([errorCode, timestamp])
+  @@schema("core")
+}
+
+model SLOAlert {
+  id        String   @id @default(uuid())
+  type      String
+  message   String
+  severity  String
+  timestamp DateTime @default(now())
+  metrics   Json?
+
+  @@index([timestamp])
+  @@index([type, timestamp])
+  @@index([severity, timestamp])
+  @@schema("core")
+}
+
+// ---------- CATALOG ----------
+enum PartyType {
+  PERSON
+  ORG
+  @@schema("catalog")
+}
+
+model Party {
+  id          String           @id @default(uuid())
+  type        PartyType
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  person      Person?
+  organization Organization?
+  addresses   PartyAddress[]
+  identities  PartyIdentity[]
+  sources     PartySourceRecord[]
+  mergesIn    PartyMerge[]     @relation("Into")
+  mergesOut   PartyMerge[]     @relation("From")
+  cases       Case[]
+  opportunities Opportunity[]
+
+  @@schema("catalog")
+}
+
+model Person {
+  id        String @id @default(uuid())
+  partyId   String @unique
+  firstName String
+  lastName  String
+  party     Party  @relation(fields: [partyId], references: [id], onDelete: Cascade)
+
+  @@schema("catalog")
+}
+
+model Organization {
+  id        String @id @default(uuid())
+  partyId   String @unique
+  legalName String
+  orgKind   String?
+  party     Party  @relation(fields: [partyId], references: [id], onDelete: Cascade)
+
+  @@schema("catalog")
+}
+
+model Address {
+  id      String @id @default(uuid())
+  line1   String
+  line2   String?
+  city    String
+  region  String?
+  postal  String?
+  country String
+  partyAddresses PartyAddress[]
+
+  @@schema("catalog")
+}
+
+enum AddressUsage {
+  HOME
+  WORK
+  MAILING
+  BILLING
+  @@schema("catalog")
+}
+
+model PartyAddress {
+  id         String   @id @default(uuid())
+  partyId    String
+  addressId  String
+  usage      AddressUsage
+  startDate  DateTime @default(now())
+  endDate    DateTime?
+  party      Party    @relation(fields: [partyId], references: [id], onDelete: Cascade)
+  address    Address  @relation(fields: [addressId], references: [id], onDelete: Cascade)
+
+  @@index([partyId])
+  @@index([addressId])
+  @@schema("catalog")
+}
+
+model PartyIdentity {
+  id        String  @id @default(uuid())
+  partyId   String
+  system    String
+  value     String
+  isPrimary Boolean @default(false)
+  party     Party   @relation(fields: [partyId], references: [id], onDelete: Cascade)
+
+  @@unique([system, value])
+  @@index([partyId])
+  @@schema("catalog")
+}
+
+model PartySourceRecord {
+  id         String   @id @default(uuid())
+  partyId    String
+  source     String
+  payload    Json
+  matchScore Float?
+  ingestedAt DateTime @default(now())
+  party      Party    @relation(fields: [partyId], references: [id], onDelete: Cascade)
+
+  @@index([partyId, source])
+  @@schema("catalog")
+}
+
+model PartyMerge {
+  id       String  @id @default(uuid())
+  fromId   String
+  intoId   String
+  reason   String?
+  mergedAt DateTime @default(now())
+  from     Party   @relation("From", fields: [fromId], references: [id])
+  into     Party   @relation("Into", fields: [intoId], references: [id])
+
+  @@index([intoId])
+  @@schema("catalog")
+}
+
+model SeedVersionHistory {
+  id          Int      @id @default(1)
+  version     String
+  lastRunAt   DateTime @default(now())
+  environment String
+  config      Json
+  summary     Json
+
+  @@map("seed_version_history")
+  @@schema("core")
+}
+
+// ---------- UI ----------
 model Page {
-  id                  String   @id @default(uuid())
-  name                String
-  slug                String   @unique
-  layoutId            String?
-  layout              Layout?  @relation(fields: [layoutId], references: [id])
-  dataSourceId        String?
-  dataSource          DataSource? @relation(fields: [dataSourceId], references: [id])
+  id                   String   @id @default(uuid())
+  name                 String
+  slug                 String
+  layoutId             String?
+  dataSourceId         String?
   visibilityConditions Json?
-  tenantId            String
-  tenant              Tenant   @relation(fields: [tenantId], references: [id])
-  sections            Section[]
-  permissionRules    PermissionRule[]
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  tenantId             String
+  sections             Section[]
+  permissionRules      PermissionRule[]
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  layout     Layout?     @relation(fields: [layoutId], references: [id])
+  dataSource DataSource? @relation(fields: [dataSourceId], references: [id])
 
   @@unique([slug, tenantId])
+  @@schema("ui")
 }
 
 model Layout {
   id          String   @id @default(uuid())
   name        String
-  template    String   // JSON string defining the layout structure
-  breakpoints Json     // Responsive breakpoint configuration
+  template    String
+  breakpoints Json
   tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id])
   pages       Page[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@schema("ui")
 }
 
 model Section {
-  id                  String   @id @default(uuid())
-  name                String
-  position            Int
-  layoutArea          String   // e.g., "header", "sidebar", "main", "footer"
+  id                   String   @id @default(uuid())
+  name                 String
+  position             Int
+  layoutArea           String
   visibilityConditions Json?
-  pageId              String
-  page                Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
-  componentInstances  ComponentInstance[]
-  permissionRules    PermissionRule[]
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  pageId               String
+  componentInstances   ComponentInstance[]
+  permissionRules      PermissionRule[]
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  page Page @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@schema("ui")
 }
 
 model ComponentType {
-  id              String   @id @default(uuid())
-  name            String
-  inputSchema     Json     // JSON schema for component props
-  defaultProps    Json     // Default property values
-  allowedDataTypes Json    // Array of allowed data types
-  tenantId        String
-  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+  id                 String   @id @default(uuid())
+  name               String
+  inputSchema        Json
+  defaultProps       Json
+  allowedDataTypes   Json
+  tenantId           String
   componentInstances ComponentInstance[]
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@schema("ui")
 }
 
 model ComponentInstance {
-  id              String   @id @default(uuid())
-  componentTypeId String
-  componentType   ComponentType @relation(fields: [componentTypeId], references: [id])
-  props           Json     // Component-specific properties
-  binding         BindingConfig?
-  interactions    Interaction[]
-  sectionId       String
-  section         Section  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
-  permissionRules PermissionRule[]
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                String   @id @default(uuid())
+  componentTypeId   String
+  props             Json
+  sectionId         String
+  permissionRules   PermissionRule[]
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  componentType ComponentType @relation(fields: [componentTypeId], references: [id])
+  section       Section       @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  binding       BindingConfig?
+  interactions  Interaction[]
+
+  @@schema("ui")
 }
 
 model FieldDefinition {
-  id             String   @id @default(uuid())
-  name           String
-  dataType       String   // e.g., "string", "number", "date", "boolean"
-  validationRules Json?
-  defaultValue   Json?
-  isVisible      Boolean  @default(true)
-  tenantId       String
-  tenant         Tenant   @relation(fields: [tenantId], references: [id])
-  permissionRules PermissionRule[]
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id               String   @id @default(uuid())
+  name             String
+  dataType         String
+  validationRules  Json?
+  defaultValue     Json?
+  isVisible        Boolean  @default(true)
+  tenantId         String
+  permissionRules  PermissionRule[]
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@schema("ui")
 }
 
 model DataSource {
   id          String   @id @default(uuid())
   name        String
-  type        String   // e.g., "rest", "graphql", "prisma"
-  query       String   // Query string or endpoint
-  params      Json?    // Query parameters
-  authContext Json?    // Authentication context
+  type        String
+  query       String
+  params      Json?
+  authContext Json?
   tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id])
   pages       Page[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@schema("ui")
 }
 
 model BindingConfig {
-  id              String   @id @default(uuid())
-  sourceField     String   // Field name from data source
-  targetProp      String   // Component property to bind to
-  transform       Json?    // Transformation function
-  defaultFallback Json?    // Default value if binding fails
-  componentInstanceId String @unique
+  id                  String   @id @default(uuid())
+  sourceField         String
+  targetProp          String
+  transform           Json?
+  defaultFallback     Json?
+  componentInstanceId String   @unique
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
   componentInstance ComponentInstance @relation(fields: [componentInstanceId], references: [id], onDelete: Cascade)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+
+  @@schema("ui")
 }
 
 model Interaction {
-  id                String   @id @default(uuid())
-  event             String   // e.g., "click", "submit", "change"
-  action            String   // Action to perform
-  targetComponentId String?  // Target component for the action
-  params            Json?    // Action parameters
-  conditions        Json?    // Conditions for the interaction
+  id                 String   @id @default(uuid())
+  event              String
+  action             String
+  targetComponentId  String?
+  params             Json?
+  conditions         Json?
   componentInstanceId String
-  componentInstance  ComponentInstance @relation(fields: [componentInstanceId], references: [id], onDelete: Cascade)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  componentInstance ComponentInstance @relation(fields: [componentInstanceId], references: [id], onDelete: Cascade)
+
+  @@schema("ui")
 }
 
 model PermissionRule {
-  id          String   @id @default(uuid())
-  targetType  String   // 'Page' | 'Section' | 'ComponentInstance' | 'FieldDefinition'
-  targetId    String   // ID of the target object
-  permission  String   // 'read' | 'write' | 'configure'
-  condition   String?  // Expression for contextual logic
-  tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id])
-  roles       Role[]   // Many-to-many with Role
-  pageId      String?
-  page        Page?    @relation(fields: [pageId], references: [id])
-  sectionId   String?
-  section     Section? @relation(fields: [sectionId], references: [id])
+  id                  String   @id @default(uuid())
+  targetType          String
+  targetId            String
+  permission          String
+  condition           String?
+  tenantId            String
+  roles               Role[]
+  tenant              Tenant   @relation(fields: [tenantId], references: [id])
+  pageId              String?
+  sectionId           String?
   componentInstanceId String?
+  fieldDefinitionId   String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  page              Page?              @relation(fields: [pageId], references: [id])
+  section           Section?           @relation(fields: [sectionId], references: [id])
   componentInstance ComponentInstance? @relation(fields: [componentInstanceId], references: [id])
-  fieldDefinitionId String?
-  fieldDefinition FieldDefinition? @relation(fields: [fieldDefinitionId], references: [id])
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  fieldDefinition   FieldDefinition?   @relation(fields: [fieldDefinitionId], references: [id])
+
+  @@schema("ui")
 }
 
-// Customer360View Models
+model UIConfig {
+  id         String   @id @default(uuid())
+  roleId     String   @unique
+  configJson Json
+  createdAt  DateTime @default(now())
 
-model Contact {
-  id              String   @id @default(uuid())
-  customerId      String
-  customer        Customer @relation(fields: [customerId], references: [id])
-  firstName       String
-  lastName        String
-  email           String
-  phone           String?
-  title           String?
-  department      String?
-  isPrimary       Boolean  @default(false)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  tenantId        String
-  tenant          Tenant   @relation(fields: [tenantId], references: [id])
-  
-  // Related data from different modules
-  opportunities   Opportunity[]
-  cases           Case[]
-  marketingCampaigns MarketingCampaign[]
-  portalActivities PortalActivity[]
-  
-  @@unique([email, tenantId])
+  @@schema("ui")
 }
 
-model ModuleLicense {
+model Menu {
+  id    String   @id @default(uuid())
+  label String
+  type  String
+  items MenuItem[]
+
+  @@schema("ui")
+}
+
+model MenuItem {
+  id               String    @id @default(uuid())
+  menuId           String
+  label            String
+  icon             String?
+  pageId           String
+  order            Int?
+  visibleIfRole    String?
+  visibleIfLicense LicenseType?
+
+  menu Menu @relation(fields: [menuId], references: [id])
+
+  @@schema("ui")
+}
+
+model StyleTemplate {
+  id     String @id @default(uuid())
+  name   String
+  tokens Json
+
+  @@schema("ui")
+}
+
+// ---------- OPS ----------
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String
+  action     String
+  targetType String
+  targetId   String
+  timestamp  DateTime @default(now())
+
+  @@index([timestamp])
+  @@index([actorId])
+  @@schema("ops")
+}
+
+model OutboxEvent {
   id          String   @id @default(uuid())
-  tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id])
-  moduleName  String   // 'sales', 'service', 'marketing', 'portal'
-  isActive    Boolean  @default(true)
-  expiresAt   DateTime?
-  features    Json?    // Module-specific features enabled
+  tenantId    String?
+  topic       String
+  payload     Json
+  createdAt   DateTime @default(now())
+  processedAt DateTime?
+  attempts    Int      @default(0)
+  lastError   String?
+
+  @@index([processedAt, createdAt])
+  @@schema("ops")
+}
+
+
+// =======================
+// WORKFLOW (definitions + runtime)
+// =======================
+model Workflow {
+  id          String   @id @default(uuid())
+  tenantId    String?
+  key         String
+  name        String
+  version     Int      @default(1)
+  definition  Json
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
-  @@unique([tenantId, moduleName])
+  states      WorkflowState[]
+  transitions WorkflowTransition[]
+  instances   WorkflowInstance[]
+  slas        SLA[]
+  triggers    WorkflowTrigger[]
+
+  @@schema("workflow")
 }
 
-// Sales Module
-model Opportunity {
-  id              String   @id @default(uuid())
-  contactId       String
-  contact         Contact  @relation(fields: [contactId], references: [id])
-  name            String
-  amount          Decimal  @db.Decimal(10, 2)
-  stage           String   // 'prospecting', 'qualification', 'proposal', 'negotiation', 'closed-won', 'closed-lost'
-  probability     Int      // 0-100
-  expectedCloseDate DateTime?
-  actualCloseDate DateTime?
-  description     String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  tenantId        String
-  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+model WorkflowState {
+  id          String   @id @default(uuid())
+  workflowId  String
+  key         String
+  name        String
+  isTerminal  Boolean  @default(false)
+  workflow    Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@unique([workflowId, key])
+  @@schema("workflow")
 }
 
-// Service Module
-model Case {
-  id              String   @id @default(uuid())
-  contactId       String
-  contact         Contact  @relation(fields: [contactId], references: [id])
-  caseNumber      String   @unique
-  subject         String
-  description     String?
-  priority        String   // 'low', 'medium', 'high', 'critical'
-  status          String   // 'open', 'in-progress', 'waiting', 'resolved', 'closed'
-  assignedTo      String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  resolvedAt      DateTime?
-  tenantId        String
-  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+model WorkflowTransition {
+  id           String   @id @default(uuid())
+  workflowId   String
+  fromStateKey String
+  toStateKey   String
+  guard        Json?
+  workflow     Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([workflowId])
+  @@schema("workflow")
 }
 
-// Marketing Module
-model MarketingCampaign {
-  id              String   @id @default(uuid())
-  name            String
-  type            String   // 'email', 'social', 'webinar', 'event'
-  status          String   // 'draft', 'active', 'paused', 'completed'
-  startDate       DateTime?
-  endDate         DateTime?
-  budget          Decimal? @db.Decimal(10, 2)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  tenantId        String
-  tenant          Tenant   @relation(fields: [tenantId], references: [id])
-  contacts        Contact[]
+model WorkflowInstance {
+  id            String   @id @default(uuid())
+  workflowId    String
+  tenantId      String?
+  subjectSchema String
+  subjectModel  String
+  subjectId     String
+  stateKey      String
+  startedAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  closedAt      DateTime?
+  workflow      Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  tasks         WorkflowTask[]
+
+  @@index([workflowId, subjectSchema, subjectModel, subjectId])
+  @@schema("workflow")
 }
 
-// Portal Module
-model PortalActivity {
-  id              String   @id @default(uuid())
-  contactId       String
-  contact         Contact  @relation(fields: [contactId], references: [id])
-  activityType    String   // 'login', 'download', 'support_request', 'feedback'
-  description     String
-  metadata        Json?    // Additional activity data
-  ipAddress       String?
-  userAgent       String?
-  createdAt       DateTime @default(now())
-  tenantId        String
-  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+model WorkflowTask {
+  id             String   @id @default(uuid())
+  instanceId     String
+  name           String
+  assigneeUserId String?
+  dueAt          DateTime?
+  completedAt    DateTime?
+  instance       WorkflowInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+
+  @@index([instanceId])
+  @@schema("workflow")
+}
+
+model SLA {
+  id          String   @id @default(uuid())
+  workflowId  String
+  name        String
+  targetMs    Int
+  rule        Json
+  active      Boolean  @default(true)
+  workflow    Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([workflowId])
+  @@schema("workflow")
+}
+
+model SLABreach {
+  id         String   @id @default(uuid())
+  instanceId String
+  slaId      String
+  breachedAt DateTime @default(now())
+  metrics    Json?
+
+  @@index([instanceId, slaId])
+  @@schema("workflow")
+}
+
+model WorkflowTrigger {
+  id            String   @id @default(uuid())
+  tenantId      String?
+  subjectSchema String
+  subjectModel  String
+  eventKey      String
+  workflowId    String
+  condition     Json?
+  active        Boolean  @default(true)
+  workflow      Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, subjectSchema, subjectModel, eventKey, active])
+  @@schema("workflow")
+}
+
+// =======================
+// AUTOMATION (jobs, webhooks)
+// =======================
+enum JobType {
+  SCHEDULED
+  WEBHOOK
+  ETL
+  INDEXER
+  @@schema("automation")
+}
+
+model Job {
+  id        String   @id @default(uuid())
+  tenantId  String?
+  type      JobType
+  key       String
+  schedule  String?
+  config    Json?
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  runs      JobRun[]
+
+  @@unique([tenantId, key])
+  @@schema("automation")
+}
+
+model JobRun {
+  id         String   @id @default(uuid())
+  jobId      String
+  startedAt  DateTime @default(now())
+  finishedAt DateTime?
+  status     String
+  details    Json?
+  job        Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId, startedAt])
+  @@schema("automation")
+}
+
+model WebhookSubscription {
+  id        String   @id @default(uuid())
+  tenantId  String?
+  eventKey  String
+  targetUrl String
+  secret    String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, eventKey])
+  @@schema("automation")
+}
+
+// =======================
+// TRAINING (AI config)
+// =======================
+model PromptTemplate {
+  id          String   @id @default(uuid())
+  tenantId    String?
+  key         String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  versions    PromptVersion[]
+
+  @@unique([tenantId, key])
+  @@schema("training")
+}
+
+model PromptVersion {
+  id         String   @id @default(uuid())
+  templateId String
+  version    Int
+  content    String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+  template   PromptTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, version])
+  @@schema("training")
+}
+
+model FineTuneDataset {
+  id         String   @id @default(uuid())
+  tenantId   String?
+  name       String
+  schema     Json
+  storageUri String
+  createdAt  DateTime @default(now())
+
+  @@schema("training")
+}
+
+model EvalSet {
+  id        String   @id @default(uuid())
+  tenantId  String?
+  name      String
+  spec      Json
+  createdAt DateTime @default(now())
+
+  runs      EvalRun[]
+
+  @@schema("training")
+}
+
+model EvalRun {
+  id        String   @id @default(uuid())
+  evalSetId String
+  model     String
+  startedAt DateTime @default(now())
+  finishedAt DateTime?
+  metrics   Json?
+  evalSet   EvalSet  @relation(fields: [evalSetId], references: [id], onDelete: Cascade)
+
+  @@index([evalSetId, startedAt])
+  @@schema("training")
+}
+
+// =======================
+// SECURITY (policy registry & access log)
+// =======================
+enum DataClass {
+  PUBLIC
+  INTERNAL
+  CONFIDENTIAL
+  RESTRICTED
+  PHI
+  PII
+  @@schema("security")
+}
+
+model Policy {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  title       String
+  description String?
+  class       DataClass
+  rules       Json
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  targets     PolicyTarget[]
+
+  @@schema("security")
+}
+
+model PolicyTarget {
+  id         String   @id @default(uuid())
+  policyId   String
+  tenantId   String?
+  roleId     String?
+  userId     String?
+  objectType String?
+  objectId   String?
+  createdAt  DateTime @default(now())
+  policy     Policy   @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  @@index([policyId])
+  @@index([tenantId, roleId, userId])
+  @@schema("security")
+}
+
+model DataAccessLog {
+  id          String   @id @default(uuid())
+  tenantId    String?
+  actorUserId String?
+  action      String
+  objectType  String
+  objectId    String?
+  outcome     String
+  reason      String?
+  occurredAt  DateTime @default(now())
+  meta        Json?
+
+  @@index([tenantId, actorUserId, occurredAt])
+  @@schema("security")
+}
+
+// ---------- PERMITS ----------
+model PermitType {
+  id           String         @id @default(uuid())
+  tenantId     String
+  code         String         @unique
+  name         String
+  description  String?
+  category     String?
+  isActive     Boolean        @default(true)
+  applications PermitCaseExt[]
+
+  @@schema("permits")
+}
+
+enum InspectionStatus {
+  SCHEDULED
+  PASSED
+  FAILED
+  CANCELLED
+  @@schema("permits")
+}
+
+model PermitCaseExt {
+  caseId        String       @id
+  permitTypeId  String
+  siteAddressId String?
+  valuation     Decimal?     @db.Decimal(12, 2)
+  notes         String?
+  inspections   Inspection[]
+  fees          Fee[]
+  kase          Case         @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  type          PermitType   @relation(fields: [permitTypeId], references: [id])
+
+  @@schema("permits")
+}
+
+model Inspection {
+  id              String        @id @default(uuid())
+  caseId          String
+  scheduledDate   DateTime
+  inspectorUserId String?
+  status          InspectionStatus @default(SCHEDULED)
+  notes           String?
+  ext             PermitCaseExt @relation(fields: [caseId], references: [caseId], onDelete: Cascade)
+
+  @@index([caseId, status])
+  @@schema("permits")
+}
+
+model Fee {
+  id          String        @id @default(uuid())
+  caseId      String
+  code        String
+  description String?
+  amount      Decimal       @db.Decimal(10, 2)
+  status      String        @default("unpaid")
+  payments    Payment[]
+  ext         PermitCaseExt @relation(fields: [caseId], references: [caseId], onDelete: Cascade)
+
+  @@index([caseId, status])
+  @@schema("permits")
+}
+
+model Payment {
+  id        String   @id @default(uuid())
+  feeId     String
+  paidAt    DateTime @default(now())
+  amount    Decimal  @db.Decimal(10, 2)
+  method    String
+  reference String?
+  fee       Fee      @relation(fields: [feeId], references: [id], onDelete: Cascade)
+
+  @@index([feeId, paidAt])
+  @@schema("permits")
+}
+
+// =======================
+// GUIDANCE (Agent Scripts)
+// =======================
+model Script {
+  id            String         @id @default(uuid())
+  tenantId      String?
+  key           String
+  title         String
+  description   String?
+  tags          String[]
+  latestVersion Int            @default(1)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  versions      ScriptVersion[]
+
+  @@unique([tenantId, key])
+  @@index([tenantId])
+  @@schema("guidance")
+}
+
+enum ScriptNodeType {
+  INFO
+  QUESTION
+  DECISION
+  ACTION
+  END
+  @@schema("guidance")
+}
+
+model ScriptVersion {
+  id          String         @id @default(uuid())
+  scriptId    String
+  version     Int
+  status      String         @default("DRAFT")
+  entryNodeId String?
+  notes       String?
+  createdAt   DateTime       @default(now())
+  publishedAt DateTime?
+
+  script      Script         @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+  nodes       ScriptNode[]
+  edges       ScriptEdge[]
+  variables   ScriptVariable[]
+
+  @@unique([scriptId, version])
+  @@index([status])
+  @@schema("guidance")
+}
+
+model ScriptNode {
+  id               String         @id @default(uuid())
+  scriptVersionId  String
+  key              String
+  type             ScriptNodeType
+  title            String?
+  prompt           String?
+  uiSchema         Json?
+  config           Json?
+  orderIndex       Int            @default(0)
+
+  version          ScriptVersion  @relation(fields: [scriptVersionId], references: [id], onDelete: Cascade)
+  outgoing         ScriptEdge[]   @relation("FromNode")
+  incoming         ScriptEdge[]   @relation("ToNode")
+
+  @@unique([scriptVersionId, key])
+  @@index([scriptVersionId, orderIndex])
+  @@schema("guidance")
+}
+
+model ScriptEdge {
+  id               String        @id @default(uuid())
+  scriptVersionId  String
+  fromNodeId       String
+  toNodeId         String
+  condition        Json?
+
+  version          ScriptVersion @relation(fields: [scriptVersionId], references: [id], onDelete: Cascade)
+  fromNode         ScriptNode    @relation("FromNode", fields: [fromNodeId], references: [id], onDelete: Cascade)
+  toNode           ScriptNode    @relation("ToNode", fields: [toNodeId], references: [id], onDelete: Cascade)
+
+  @@index([scriptVersionId])
+  @@index([fromNodeId])
+  @@index([toNodeId])
+  @@schema("guidance")
+}
+
+model ScriptVariable {
+  id               String        @id @default(uuid())
+  scriptVersionId  String
+  key              String
+  type             String
+  enumValues       String[]
+  defaultVal       String?
+  required         Boolean       @default(false)
+
+  version          ScriptVersion @relation(fields: [scriptVersionId], references: [id], onDelete: Cascade)
+
+  @@unique([scriptVersionId, key])
+  @@schema("guidance")
+}
+
+model ScriptRun {
+  id              String      @id @default(uuid())
+  tenantId        String?
+  scriptId        String
+  scriptVersion   Int
+  subjectSchema   String?
+  subjectModel    String?
+  subjectId       String?
+  startedByUserId String?
+  startedAt       DateTime    @default(now())
+  completedAt     DateTime?
+  state           Json?
+
+  answers         ScriptAnswer[]
+
+  @@index([tenantId, scriptId, scriptVersion])
+  @@index([subjectSchema, subjectModel, subjectId])
+  @@schema("guidance")
+}
+
+model ScriptAnswer {
+  id         String    @id @default(uuid())
+  runId      String
+  nodeKey    String
+  value      Json
+  answeredAt DateTime  @default(now())
+
+  run        ScriptRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId, answeredAt])
+  @@schema("guidance")
 }

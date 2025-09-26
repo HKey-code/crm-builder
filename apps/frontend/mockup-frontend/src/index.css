@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+:root{
+  --lpc-primary:#003366;
+  --lpc-primary-600:#1C5E91;
+  /* Teal accent for header/footer bars */
+  --lpc-secondary:#0E7490;
+  --lpc-accent:#A4A635;
+  --lpc-bg:#F2F6FA;
+  --lpc-surface:#FFFFFF;
+  --lpc-stroke:#D3D9E0;
+  --lpc-text:#263442;
+  --lpc-muted:#5B6C7F;
+  --lpc-link:#1C5E91;
+  --lpc-link-hover:#14486F;
+  --rail-w:56px;
+  --content-gap:1rem; /* matches gap-4 between rail and content */
+  --container-pad:1rem; /* matches px-4 on the content container */
+}
+
+html,body,#root{height:100%;}
+body{background:var(--lpc-bg); color:var(--lpc-text);} 
+a{color:var(--lpc-link);} 
+a:hover{color:var(--lpc-link-hover);} 
+/*
+.react-flow__node {
+  visibility: visible !important;
+}
+*/
+/* Strong, consistent focus rings */
+:focus-visible { outline: 2px solid var(--lpc-link); outline-offset: 2px; }
+button:focus:not(:focus-visible), a:focus:not(:focus-visible), input:focus:not(:focus-visible), select:focus:not(:focus-visible), textarea:focus:not(:focus-visible) { outline: none; }
+
+.react-flow__node-input {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  padding: 0 !important;
+}

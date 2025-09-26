@@ -79,7 +79,10 @@ az webapp config appsettings set \
   --settings \
     DATABASE_URL="your-postgresql-connection-string" \
     JWT_SECRET="your-jwt-secret" \
-    NODE_ENV="production"
+    NODE_ENV="production" \
+    TZ="UTC" \
+    ENABLE_DEMO_PROBE_USERS="false" \
+    ENABLE_AUDIT_LOGS="true"
 ```
 
 **Frontend App Service:**
@@ -91,7 +94,62 @@ az webapp config appsettings set \
     NODE_ENV="production"
 ```
 
-### 3. Get Publish Profiles
+### 3. Seed Configuration (Production Safety)
+
+The seed script is configured for production safety with the following environment variables:
+
+**Production Environment (Recommended):**
+```bash
+NODE_ENV=production
+TZ=UTC
+ENABLE_DEMO_PROBE_USERS=false
+ENABLE_AUDIT_LOGS=true
+```
+
+**Development Environment:**
+```bash
+NODE_ENV=development
+ENABLE_DEMO_PROBE_USERS=true
+ENABLE_AUDIT_LOGS=true
+```
+
+**Key Safety Features:**
+- ✅ **Probe users disabled by default in production** - Prevents synthetic monitoring users in production
+- ✅ **UTC timezone enforcement** - Prevents timezone-related issues
+- ✅ **Audit logs enabled** - Maintains compliance and debugging capability
+- ✅ **Environment-aware defaults** - Automatically detects production vs development
+
+**Optional Customization:**
+```bash
+# Custom tenant and user names (optional)
+SEED_TENANT_NAME="Your Company Name"
+SEED_ADMIN_EMAIL="admin@yourcompany.com"
+SEED_SERVICE_EMAIL="service@yourcompany.com"
+SEED_SALES_EMAIL="sales@yourcompany.com"
+SEED_PROBE_EMAIL="probe@yourcompany.com"
+SEED_PROBE_TENANT_NAME="YOUR-PROBE-TENANT"
+```
+
+**Complete Environment Variable Reference:**
+```bash
+# Core Configuration
+NODE_ENV=production|staging|development
+TZ=UTC
+ENABLE_DEMO_PROBE_USERS=false|true
+ENABLE_AUDIT_LOGS=true|false
+
+# Tenant Configuration
+SEED_TENANT_NAME="Your Company Name"
+SEED_ADMIN_EMAIL="admin@yourcompany.com"
+SEED_SERVICE_EMAIL="service@yourcompany.com"
+SEED_SALES_EMAIL="sales@yourcompany.com"
+
+# Probe User Configuration (for synthetic monitoring)
+SEED_PROBE_EMAIL="probe@yourcompany.com"
+SEED_PROBE_TENANT_NAME="YOUR-PROBE-TENANT"
+```
+
+### 4. Get Publish Profiles
 
 Download the publish profiles for both apps:
 
@@ -109,14 +167,14 @@ az webapp deployment list-publishing-profiles \
   --xml > frontend-publish-profile.xml
 ```
 
-### 4. Add GitHub Secrets
+### 5. Add GitHub Secrets
 
 1. Go to your GitHub repository → Settings → Secrets and variables → Actions
 2. Add the following secrets:
    - `AZURE_WEBAPP_PUBLISH_PROFILE_BACKEND`: Content of `backend-publish-profile.xml`
    - `AZURE_WEBAPP_PUBLISH_PROFILE_FRONTEND`: Content of `frontend-publish-profile.xml`
 
-### 5. Configure Startup Commands
+### 6. Configure Startup Commands
 
 **Backend App Service:**
 ```bash

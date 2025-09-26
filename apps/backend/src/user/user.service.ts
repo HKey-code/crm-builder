@@ -12,8 +12,17 @@ export class UserService {
   async findAll(): Promise<User[]> {
     return this.prisma.user.findMany({
       include: {
-        role: true,
         tenant: true,
+        userLicenses: {
+          include: {
+            role: true,
+            tenantLicense: {
+              include: {
+                tenant: true,
+              },
+            },
+          },
+        },
       },
     });
   }
@@ -22,8 +31,17 @@ export class UserService {
     return this.prisma.user.findUnique({
       where: { id },
       include: {
-        role: true,
         tenant: true,
+        userLicenses: {
+          include: {
+            role: true,
+            tenantLicense: {
+              include: {
+                tenant: true,
+              },
+            },
+          },
+        },
       },
     });
   }
@@ -31,12 +49,25 @@ export class UserService {
   async create(data: CreateUserInput): Promise<User> {
     return this.prisma.user.create({
       data: {
-        ...data,
-        roleId: data.roleId,
+        email: data.email,
+        name: data.name,
+        tenantId: data.tenantId,
+        isSystemUser: data.isSystemUser || false,
+        userType: data.userType || 'HUMAN',
+        status: data.status || 'active',
       },
       include: {
-        role: true,
         tenant: true,
+        userLicenses: {
+          include: {
+            role: true,
+            tenantLicense: {
+              include: {
+                tenant: true,
+              },
+            },
+          },
+        },
       },
     });
   }
@@ -44,10 +75,26 @@ export class UserService {
   async update(id: string, data: Partial<CreateUserInput>): Promise<User> {
     return this.prisma.user.update({
       where: { id },
-      data,
+      data: {
+        email: data.email,
+        name: data.name,
+        tenantId: data.tenantId,
+        isSystemUser: data.isSystemUser,
+        userType: data.userType,
+        status: data.status,
+      },
       include: {
-        role: true,
         tenant: true,
+        userLicenses: {
+          include: {
+            role: true,
+            tenantLicense: {
+              include: {
+                tenant: true,
+              },
+            },
+          },
+        },
       },
     });
   }
@@ -56,8 +103,55 @@ export class UserService {
     return this.prisma.user.delete({
       where: { id },
       include: {
-        role: true,
         tenant: true,
+        userLicenses: {
+          include: {
+            role: true,
+            tenantLicense: {
+              include: {
+                tenant: true,
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  async findByEmail(email: string): Promise<User | null> {
+    return this.prisma.user.findUnique({
+      where: { email },
+      include: {
+        tenant: true,
+        userLicenses: {
+          include: {
+            role: true,
+            tenantLicense: {
+              include: {
+                tenant: true,
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  async getSystemUsers(): Promise<User[]> {
+    return this.prisma.user.findMany({
+      where: { isSystemUser: true },
+      include: {
+        tenant: true,
+        userLicenses: {
+          include: {
+            role: true,
+            tenantLicense: {
+              include: {
+                tenant: true,
+              },
+            },
+          },
+        },
       },
     });
   }

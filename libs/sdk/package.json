@@ -1,0 +1,41 @@
+{
+  "name": "@crm-builder/license-sdk",
+  "version": "1.0.0",
+  "description": "TypeScript SDK for CRM License System API",
+  "main": "dist/sdk.js",
+  "types": "dist/sdk.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run clean && npm run build"
+  },
+  "keywords": [
+    "crm",
+    "license",
+    "sdk",
+    "typescript",
+    "api"
+  ],
+  "author": "CRM Builder Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/crm-builder.git",
+    "directory": "libs/sdk"
+  },
+  "bugs": {
+    "url": "https://github.com/your-org/crm-builder/issues"
+  },
+  "homepage": "https://github.com/your-org/crm-builder#readme",
+  "peerDependencies": {
+    "typescript": ">=4.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.1.3",
+    "@types/node": "^20.3.1"
+  }
+}

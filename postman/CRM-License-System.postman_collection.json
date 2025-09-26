@@ -1,0 +1,451 @@
+{
+  "info": {
+    "name": "CRM License System API",
+    "description": "Complete CRM license management system with tenant isolation, seat tracking, and audit trails",
+    "version": "1.0.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://new-smart-crm-backend-dev-bacrgwh7egdfavfv.centralus-01.azurewebsites.net",
+      "type": "string"
+    },
+    {
+      "key": "authToken",
+      "value": "your-auth-token-here",
+      "type": "string"
+    },
+    {
+      "key": "userId",
+      "value": "test-user-id",
+      "type": "string"
+    },
+    {
+      "key": "tenantId",
+      "value": "test-tenant-id",
+      "type": "string"
+    },
+    {
+      "key": "licenseType",
+      "value": "SMART_SERVICE",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{authToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Health & Monitoring",
+      "item": [
+        {
+          "name": "Basic Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            }
+          }
+        },
+        {
+          "name": "License Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health/license?tenantId={{tenantId}}&licenseType={{licenseType}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["health", "license"],
+              "query": [
+                {
+                  "key": "tenantId",
+                  "value": "{{tenantId}}"
+                },
+                {
+                  "key": "licenseType",
+                  "value": "{{licenseType}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "License Summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health/license/summary",
+              "host": ["{{baseUrl}}"],
+              "path": ["health", "license", "summary"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "License Management",
+      "item": [
+        {
+          "name": "Check User License",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/licenses/check?userId={{userId}}&tenantId={{tenantId}}&licenseType={{licenseType}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["licenses", "check"],
+              "query": [
+                {
+                  "key": "userId",
+                  "value": "{{userId}}"
+                },
+                {
+                  "key": "tenantId",
+                  "value": "{{tenantId}}"
+                },
+                {
+                  "key": "licenseType",
+                  "value": "{{licenseType}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Validate User Access",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/licenses/validate/{{tenantId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["licenses", "validate", "{{tenantId}}"]
+            }
+          }
+        },
+        {
+          "name": "Get User Licenses",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/licenses/user/{{tenantId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["licenses", "user", "{{tenantId}}"]
+            }
+          }
+        },
+        {
+          "name": "Assign License",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"tenantId\": \"{{tenantId}}\",\n  \"licenseType\": \"{{licenseType}}\",\n  \"roleId\": \"role-id-here\",\n  \"expiresAt\": \"2025-12-31T23:59:59Z\",\n  \"notes\": \"License assignment via API\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/licenses/assign",
+              "host": ["{{baseUrl}}"],
+              "path": ["licenses", "assign"]
+            }
+          }
+        },
+        {
+          "name": "Assign License with Override",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"tenantId\": \"{{tenantId}}\",\n  \"licenseType\": \"{{licenseType}}\",\n  \"roleId\": \"role-id-here\",\n  \"expiresAt\": \"2025-12-31T23:59:59Z\",\n  \"notes\": \"License assignment with override\",\n  \"reason\": \"Temporary increase for project deadline\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/licenses/assign/override",
+              "host": ["{{baseUrl}}"],
+              "path": ["licenses", "assign", "override"]
+            }
+          }
+        },
+        {
+          "name": "Revoke License",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"tenantId\": \"{{tenantId}}\",\n  \"licenseType\": \"{{licenseType}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/licenses/revoke",
+              "host": ["{{baseUrl}}"],
+              "path": ["licenses", "revoke"]
+            }
+          }
+        },
+        {
+          "name": "Renew License",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"tenantId\": \"{{tenantId}}\",\n  \"licenseType\": \"{{licenseType}}\",\n  \"expiresAt\": \"2026-12-31T23:59:59Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/licenses/renew",
+              "host": ["{{baseUrl}}"],
+              "path": ["licenses", "renew"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Tenant Management",
+      "item": [
+        {
+          "name": "Get Tenant Licenses",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/licenses/tenant/{{tenantId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["licenses", "tenant", "{{tenantId}}"]
+            }
+          }
+        },
+        {
+          "name": "Create Tenant License",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenantId\": \"{{tenantId}}\",\n  \"licenseType\": \"{{licenseType}}\",\n  \"status\": \"active\",\n  \"activatedAt\": \"2025-01-01T00:00:00Z\",\n  \"expiresAt\": \"2025-12-31T23:59:59Z\",\n  \"totalSeats\": 100,\n  \"metadata\": {\n    \"features\": [\"ticket-management\", \"case-tracking\"],\n    \"modules\": [\"service-desk\"]\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/licenses/tenant",
+              "host": ["{{baseUrl}}"],
+              "path": ["licenses", "tenant"]
+            }
+          }
+        },
+        {
+          "name": "Get License Usage",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/licenses/usage/{{tenantId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["licenses", "usage", "{{tenantId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Seat Management",
+      "item": [
+        {
+          "name": "Get Seat Usage (Tenant)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/licenses/seats/{{tenantId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["licenses", "seats", "{{tenantId}}"]
+            }
+          }
+        },
+        {
+          "name": "Get All Seat Usage",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/licenses/seats",
+              "host": ["{{baseUrl}}"],
+              "path": ["licenses", "seats"]
+            }
+          }
+        },
+        {
+          "name": "Get Expiring Licenses",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/licenses/expiring?days=90",
+              "host": ["{{baseUrl}}"],
+              "path": ["licenses", "expiring"],
+              "query": [
+                {
+                  "key": "days",
+                  "value": "90"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Maintenance",
+      "item": [
+        {
+          "name": "Expire Licenses",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/licenses/maintenance/expire",
+              "host": ["{{baseUrl}}"],
+              "path": ["licenses", "maintenance", "expire"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Service Module (SMART_SERVICE)",
+      "item": [
+        {
+          "name": "Get Service Tickets",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service/tickets",
+              "host": ["{{baseUrl}}"],
+              "path": ["service", "tickets"]
+            }
+          }
+        },
+        {
+          "name": "Create Service Ticket",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subject\": \"API Test Ticket\",\n  \"description\": \"Test ticket created via API\",\n  \"priority\": \"medium\",\n  \"status\": \"open\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/service/tickets",
+              "host": ["{{baseUrl}}"],
+              "path": ["service", "tickets"]
+            }
+          }
+        },
+        {
+          "name": "Get Service Cases",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service/cases",
+              "host": ["{{baseUrl}}"],
+              "path": ["service", "cases"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Sales Module (SMART_SALES)",
+      "item": [
+        {
+          "name": "Get Sales Opportunities",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sales/opportunities",
+              "host": ["{{baseUrl}}"],
+              "path": ["sales", "opportunities"]
+            }
+          }
+        },
+        {
+          "name": "Create Sales Opportunity",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"API Test Opportunity\",\n  \"amount\": 50000,\n  \"stage\": \"prospecting\",\n  \"probability\": 25,\n  \"expectedCloseDate\": \"2025-12-31T23:59:59Z\",\n  \"description\": \"Test opportunity created via API\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/sales/opportunities",
+              "host": ["{{baseUrl}}"],
+              "path": ["sales", "opportunities"]
+            }
+          }
+        },
+        {
+          "name": "Get Sales Leads",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sales/leads",
+              "host": ["{{baseUrl}}"],
+              "path": ["sales", "leads"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

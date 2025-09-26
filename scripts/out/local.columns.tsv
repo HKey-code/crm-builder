@@ -1,0 +1,34 @@
+core	Contact	f5c9aee9144c8bb4d04ce6e4cf78786d	id text, customerId text, firstName text, lastName text, email text, phone text, title text, department text, isPrimary boolean, createdAt timestamp without time zone, updatedAt timestamp without time zone, tenantId text
+core	Customer	246850b60ef95b0bb0becb1357b043bf	id text, name text, preferredLanguage text, createdAt timestamp without time zone, updatedAt timestamp without time zone, tenantId text
+core	PermissionSet	985fef229d84973bda17c414d92d0cc4	id text, name text, description text
+core	Role	75d58860bc814a95ae6b8815b503dff9	id text, name text, description text, isGlobal boolean, createdAt timestamp without time zone
+core	RoleAssignment	928f14b1dc6c3a0efd1bf0b18e562547	id text, userId text, tenantId text, scope text, label text, roleId text, createdAt timestamp without time zone
+core	RolePermissionSet	c4804f01c6d2a5f04fe27f4745c70f22	roleId text, permissionSetId text
+core	SLOAlert	450d79e70eec2e1a462db802a73f69d8	id text, type text, message text, severity text, timestamp timestamp without time zone, metrics jsonb
+core	SLOMetric	5a0d413bac96511e61e9ca4d5ecf7b26	id text, latencyMs integer, success boolean, errorCode text, userId text, tenantId text, licenseType text, timestamp timestamp without time zone
+core	Tenant	84557dedce5a9b6f96a23b78f7536928	id text, name text, deploymentStack text, isIsolated boolean, defaultLocale text, appVersion text, createdAt timestamp without time zone, updatedAt timestamp without time zone
+core	TenantLicense	6451028b7d11d9b1f8736e1a5229fd80	id text, tenantId text, licenseType USER-DEFINED, status text, activatedAt timestamp without time zone, expiresAt timestamp without time zone, metadata jsonb, totalSeats integer
+core	User	37be76f7f0aa16ebb62c68d7d101d699	id text, email text, name text, tenantId text, isSystemUser boolean, userType USER-DEFINED, status USER-DEFINED, createdAt timestamp without time zone, updatedAt timestamp without time zone
+core	UserTenantLicense	afa9f3d060ed007bc3a2933f893d950c	id text, userId text, tenantLicenseId text, roleId text, status USER-DEFINED, assignedAt timestamp without time zone, expiresAt timestamp without time zone, assignedBy text, notes text
+core	_ContactToMarketingCampaign	47d7db6ea1e52e4a0823c08f857c0f93	A text, B text
+core	seed_version_history	fa1ed8c9f0ee129be4d8d1d986ee02f3	id integer, version text, lastRunAt timestamp without time zone, environment text, config jsonb, summary jsonb
+marketing	MarketingCampaign	79fd9eca5f27639b3172ae106f7b603f	id text, name text, type text, status text, startDate timestamp without time zone, endDate timestamp without time zone, budget numeric, createdAt timestamp without time zone, updatedAt timestamp without time zone, tenantId text
+ops	AuditLog	8b0a7ca7bbef4cadb6650f55331b2bfe	id text, actorId text, action text, targetType text, targetId text, timestamp timestamp without time zone
+portal	PortalActivity	595010b4df812c07493c33589596a0d3	id text, contactId text, activityType text, description text, metadata jsonb, ipAddress text, userAgent text, createdAt timestamp without time zone, tenantId text
+sales	Opportunity	0d97774cd2d8a2d91a869ff67b96b216	id text, contactId text, name text, amount numeric, stage text, probability integer, expectedCloseDate timestamp without time zone, actualCloseDate timestamp without time zone, description text, createdAt timestamp without time zone, updatedAt timestamp without time zone, tenantId text
+service	Case	465cee958f24b319fd5efb1fed6311d9	id text, contactId text, caseNumber text, subject text, description text, priority text, status text, assignedTo text, createdAt timestamp without time zone, updatedAt timestamp without time zone, resolvedAt timestamp without time zone, tenantId text
+ui	BindingConfig	2b89d3c4690a1724f716ff2864e10321	id text, sourceField text, targetProp text, transform jsonb, defaultFallback jsonb, componentInstanceId text, createdAt timestamp without time zone, updatedAt timestamp without time zone
+ui	ComponentInstance	7c0413bb2e7d7f32ac81709144091635	id text, componentTypeId text, props jsonb, sectionId text, createdAt timestamp without time zone, updatedAt timestamp without time zone
+ui	ComponentType	22b11768d74b7177222c4f2b6077684a	id text, name text, inputSchema jsonb, defaultProps jsonb, allowedDataTypes jsonb, tenantId text, createdAt timestamp without time zone, updatedAt timestamp without time zone
+ui	DataSource	8ab7849d285a92b271eaaaee118ba39d	id text, name text, type text, query text, params jsonb, authContext jsonb, tenantId text, createdAt timestamp without time zone, updatedAt timestamp without time zone
+ui	FieldDefinition	2e13acf3cea44ed291fce1c8659c289a	id text, name text, dataType text, validationRules jsonb, defaultValue jsonb, isVisible boolean, tenantId text, createdAt timestamp without time zone, updatedAt timestamp without time zone
+ui	Interaction	10bfe6804d9609f08da26cfb0d13e890	id text, event text, action text, targetComponentId text, params jsonb, conditions jsonb, componentInstanceId text, createdAt timestamp without time zone, updatedAt timestamp without time zone
+ui	Layout	4e0f7d4841b7a5199471f208839a1999	id text, name text, template text, breakpoints jsonb, tenantId text, createdAt timestamp without time zone, updatedAt timestamp without time zone
+ui	Menu	c45a71556808f2064df2ed13ecf63f59	id text, label text, type text
+ui	MenuItem	a4b92785cc261afa6e2b9d6292e66982	id text, menuId text, label text, icon text, pageId text, order integer, visibleIfRole text, visibleIfLicense USER-DEFINED
+ui	Page	0d8950af098eb2dc4f1de0728118d5ae	id text, name text, slug text, layoutId text, dataSourceId text, visibilityConditions jsonb, tenantId text, createdAt timestamp without time zone, updatedAt timestamp without time zone
+ui	PermissionRule	2bd5609094bb01ac8c986a8deea7555f	id text, targetType text, targetId text, permission text, condition text, tenantId text, pageId text, sectionId text, componentInstanceId text, fieldDefinitionId text, createdAt timestamp without time zone, updatedAt timestamp without time zone
+ui	Section	14358af1e6d13ee75e6387361e5459fe	id text, name text, position integer, layoutArea text, visibilityConditions jsonb, pageId text, createdAt timestamp without time zone, updatedAt timestamp without time zone
+ui	StyleTemplate	1db499f0df1a0e5db6dfea3b6e0f75fb	id text, name text, tokens jsonb
+ui	UIConfig	203bc0d502efecf1bab50d07626b44c9	id text, roleId text, configJson jsonb, createdAt timestamp without time zone
+ui	_PermissionRuleToRole	47d7db6ea1e52e4a0823c08f857c0f93	A text, B text

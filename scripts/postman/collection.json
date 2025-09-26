@@ -1,0 +1,55 @@
+{
+  "info": { "name": "CRM Builder API", "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json" },
+  "item": [
+    {
+      "name": "Create Case",
+      "request": {
+        "method": "POST",
+        "header": [ {"key": "Authorization", "value": "Bearer {{token}}"}, {"key": "Content-Type", "value": "application/json"} ],
+        "url": { "raw": "{{baseUrl}}/service/cases", "host": ["{{baseUrl}}"], "path": ["service","cases"] },
+        "body": { "mode": "raw", "raw": "{\n  \"tenantId\": \"{{tenantId}}\",\n  \"caseNumber\": \"PRM-POSTMAN-1\",\n  \"caseType\": \"PERMIT\",\n  \"status\": \"open\"\n}" }
+      },
+      "event": [{
+        "listen": "test",
+        "script": {"exec": [
+          "var json = pm.response.json();",
+          "pm.collectionVariables.set('caseId', json.id || json.case?.id || '');",
+          "pm.test('Case created', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });"
+        ], "type": "text/javascript"}
+      }]
+    },
+    {
+      "name": "Find Workflow Instance by Subject",
+      "request": {
+        "method": "GET",
+        "header": [ {"key": "Authorization", "value": "Bearer {{token}}"} ],
+        "url": { "raw": "{{baseUrl}}/workflow/instances?subjectSchema=service&subjectModel=Case&subjectId={{caseId}}",
+          "host": ["{{baseUrl}}"], "path": ["workflow","instances"],
+          "query": [ {"key":"subjectSchema","value":"service"},{"key":"subjectModel","value":"Case"},{"key":"subjectId","value":"{{caseId}}"} ] }
+      },
+      "event": [{
+        "listen": "test",
+        "script": {"exec": [
+          "var arr = pm.response.json();",
+          "if (Array.isArray(arr) && arr.length) { pm.collectionVariables.set('instanceId', arr[0].id); }",
+          "pm.test('Instances fetched', function(){ pm.expect(pm.response.code).to.be.oneOf([200]); });"
+        ], "type": "text/javascript"}
+      }]
+    },
+    {
+      "name": "Advance Workflow Instance",
+      "request": {
+        "method": "POST",
+        "header": [ {"key": "Authorization", "value": "Bearer {{token}}"}, {"key": "Content-Type", "value": "application/json"} ],
+        "url": { "raw": "{{baseUrl}}/workflow/instances/{{instanceId}}/advance", "host": ["{{baseUrl}}"], "path": ["workflow","instances","{{instanceId}}","advance"] },
+        "body": { "mode": "raw", "raw": "{}" }
+      },
+      "event": [{
+        "listen": "test",
+        "script": {"exec": [
+          "pm.test('Advanced or terminal', function(){ pm.expect(pm.response.code).to.be.oneOf([200]); });"
+        ], "type": "text/javascript"}
+      }]
+    }
+  ]
+}
