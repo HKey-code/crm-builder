@@ -101,7 +101,7 @@ export default function ScriptCanvasLocal({
   initial?: GraphJSON;
   onChange?: (g: GraphJSON) => void;
 }) {
-  const dbg = React.useCallback((...args: any[]) => console.debug('[Canvas]', ...args), []);
+  const dbg = React.useCallback((..._args: any[]) => {}, []);
   /** 1) Undoable JSON graph (single source of truth) */
   const initialJSON = React.useMemo<GraphJSON>(() => initial ?? { nodes: [], edges: [] }, [initial]);
   const [graphState, { set: setGraphJSON, undo, redo, canUndo, canRedo }] = useUndo<GraphJSON>(initialJSON);
@@ -688,7 +688,7 @@ export default function ScriptCanvasLocal({
     const choiceGroups = detail && Array.isArray((detail as any)?.choice?.groups)
       ? (detail as any).choice.groups.length
       : undefined;
-    dbg('dispatch select', { id: detail?.id, groups: choiceGroups });
+    // quiet: no console spam on selection
     setSelectedId(detail?.id ?? null);
     window.dispatchEvent(new CustomEvent('script-canvas-select', { detail }));
   }, [nodes]);

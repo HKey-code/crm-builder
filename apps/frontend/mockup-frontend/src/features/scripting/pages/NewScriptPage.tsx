@@ -62,7 +62,7 @@ function Palette() {
 function PageInner() {
   const selectNodeId = useScriptStore((s) => s.selectNodeId);
   const updateNode   = useScriptStore((s) => s.updateNode);
-  const dbg = React.useCallback((...args: any[]) => console.debug('[Page]', ...args), []);
+  const dbg = React.useCallback((..._args: any[]) => {}, []);
 
   // Local selection from the canvas (preferred when using ScriptCanvasLocal)
   const [selectedLocal, setSelectedLocal] = React.useState<{
@@ -128,13 +128,8 @@ function PageInner() {
   }, [selectedNodeFromStore]);
 
   const selectedForRail = React.useMemo(() => {
-    const src = selectedLocal ? 'local' : 'store';
-    const groups = selectedLocal
-      ? (Array.isArray((selectedLocal as any)?.choice?.groups) ? (selectedLocal as any).choice.groups.length : undefined)
-      : (Array.isArray((fallbackSelectedNode as any)?.choice?.groups) ? (fallbackSelectedNode as any).choice.groups.length : undefined);
-    dbg('RightRail source', { src, id: (selectedLocal ?? fallbackSelectedNode)?.id, groups });
     return selectedLocal ?? fallbackSelectedNode;
-  }, [selectedLocal, fallbackSelectedNode, dbg]);
+  }, [selectedLocal, fallbackSelectedNode]);
 
   return (
     <div className="flex h-full w-full flex-col">
