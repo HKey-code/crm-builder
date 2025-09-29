@@ -26,11 +26,11 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           python3 - <<'PY'
-import os
-from urllib.parse import urlparse
-u = urlparse(os.environ.get('DATABASE_URL',''))
-print(f"Host: {u.hostname}")
-print(f"DB:   {u.path.lstrip('/')}")
+  import os
+  from urllib.parse import urlparse
+  u = urlparse(os.environ.get('DATABASE_URL',''))
+  print(f"Host: {u.hostname}")
+  print(f"DB:   {u.path.lstrip('/')}")
 PY
 
       - name: Apply tenant-safety SQL (idempotent)
