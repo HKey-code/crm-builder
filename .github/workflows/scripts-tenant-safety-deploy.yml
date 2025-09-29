@@ -10,9 +10,14 @@ on:
 
 jobs:
   deploy:
-    if: github.event.inputs.confirm == 'YES'
     runs-on: ubuntu-latest
     steps:
+      - name: Guard confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "YES" ]; then
+            echo "confirm input must be YES";
+            exit 1;
+          fi
       - name: Checkout
         uses: actions/checkout@v4
 
