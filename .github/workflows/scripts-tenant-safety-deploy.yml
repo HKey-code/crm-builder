@@ -1,0 +1,51 @@
+name: Scripts Tenant Safety Deploy (one-off SQL)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type YES to run the tenant-safety SQL against DATABASE_URL'
+        required: true
+        default: 'NO'
+
+jobs:
+  deploy:
+    if: github.event.inputs.confirm == 'YES'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Show target
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python3 - <<'PY'
+import os
+from urllib.parse import urlparse
+u = urlparse(os.environ.get('DATABASE_URL',''))
+print(f"Host: {u.hostname}")
+print(f"DB:   {u.path.lstrip('/')}")
+PY
+
+      - name: Apply tenant-safety SQL (idempotent)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f libs/schema-engine/prisma/migrations/20250929230000_scripts_v2_tenant_safety/migration.sql
+
+      - name: Verify constraints exist
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          psql "$DATABASE_URL" -c "\d+ scripts.\"Script\"" | sed -n '1,200p'
+          psql "$DATABASE_URL" -c "\d+ scripts.\"ScriptVersion\"" | sed -n '1,200p'
+          psql "$DATABASE_URL" -c "\d+ scripts.\"ScriptRun\"" | sed -n '1,200p'
+          psql "$DATABASE_URL" -c "\d+ scripts.\"ScriptAuditLog\"" | sed -n '1,200p'
+
+
