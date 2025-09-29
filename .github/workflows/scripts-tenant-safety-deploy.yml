@@ -21,17 +21,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y postgresql-client
 
-      - name: Show target
+      - name: Confirm target is configured
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
-          python3 - <<'PY'
-  import os
-  from urllib.parse import urlparse
-  u = urlparse(os.environ.get('DATABASE_URL',''))
-  print(f"Host: {u.hostname}")
-  print(f"DB:   {u.path.lstrip('/')}")
-PY
+          if [ -z "$DATABASE_URL" ]; then echo "DATABASE_URL missing"; exit 1; fi
+          echo "DATABASE_URL is set (host hidden)"
 
       - name: Apply tenant-safety SQL (idempotent)
         env:
