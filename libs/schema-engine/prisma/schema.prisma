@@ -7,7 +7,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  schemas  = ["core", "ui", "ops", "catalog", "service", "sales", "marketing", "portal", "workflow", "automation", "training", "security", "guidance", "permits", "public_health"]
+  schemas  = ["core", "ui", "ops", "catalog", "service", "sales", "marketing", "portal", "workflow", "automation", "training", "security", "guidance", "permits", "public_health", "scripts"]
 }
 
 // ---- enums (single copy) ----
@@ -37,6 +37,116 @@ enum SeatStatus {
   expired
   suspended
   @@schema("core")
+}
+
+// ---------- SCRIPTS (Authoring + Runtime minimal surface) ----------
+enum ScriptStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+  @@schema("scripts")
+}
+
+enum ChangeAction {
+  CREATE
+  UPDATE
+  PUBLISH
+  ARCHIVE
+  ROLLBACK
+  @@schema("scripts")
+}
+
+model AuthorScript {
+  id              String        @id @default(cuid())
+  tenantId        String
+  name            String
+  slug            String
+  description     String?
+  status          ScriptStatus  @default(DRAFT)
+  activeVersionId String?
+  latestVersion   Int           @default(0)
+  // AI routing/meta
+  labels          String[]      @default([])
+  intents         String[]      @default([])
+  languageCodes   String[]      @default([])
+  embeddingKey    String?
+  createdById     String
+  updatedById     String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  versions        AuthorScriptVersion[]
+  auditLogs       AuthorScriptAuditLog[]
+  runs            AuthorScriptRun[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId, status])
+  @@schema("scripts")
+}
+
+model AuthorScriptVersion {
+  id           String       @id @default(cuid())
+  scriptId     String
+  version      Int
+  graphJson    Json
+  variablesDef Json?
+  changelog    String?
+  isPublished  Boolean      @default(false)
+  createdById  String
+  createdAt    DateTime     @default(now())
+  script       AuthorScript @relation(fields: [scriptId], references: [id])
+
+  @@unique([scriptId, version])
+  @@index([scriptId, isPublished])
+  @@schema("scripts")
+}
+
+model AuthorScriptAuditLog {
+  id        String       @id @default(cuid())
+  tenantId  String
+  scriptId  String
+  version   Int
+  actorId   String
+  action    ChangeAction
+  diffJson  Json?
+  note      String?
+  createdAt DateTime     @default(now())
+  script    AuthorScript @relation(fields: [scriptId], references: [id])
+
+  @@index([tenantId, scriptId, createdAt])
+  @@schema("scripts")
+}
+
+model AuthorScriptRun {
+  id            String   @id @default(cuid())
+  tenantId      String
+  scriptId      String
+  version       Int
+  startedById   String?
+  connectorType String?
+  connectorKey  String?
+  status        String   @default("RUNNING") // RUNNING|SUCCEEDED|FAILED|CANCELLED
+  startedAt     DateTime @default(now())
+  endedAt       DateTime?
+  script        AuthorScript @relation(fields: [scriptId], references: [id])
+  vars          RunVariable[]
+
+  @@index([tenantId, scriptId, startedAt])
+  @@index([status])
+  @@schema("scripts")
+}
+
+model RunVariable {
+  id      String           @id @default(cuid())
+  runId   String
+  key     String
+  strVal  String?
+  numVal  Float?
+  boolVal Boolean?
+  jsonVal Json?
+  run     AuthorScriptRun  @relation(fields: [runId], references: [id])
+
+  @@index([runId, key])
+  @@schema("scripts")
 }
 
 // ---------- CORE ----------
