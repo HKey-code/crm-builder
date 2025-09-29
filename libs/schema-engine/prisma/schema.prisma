@@ -7,7 +7,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  schemas  = ["core", "ui", "ops", "catalog", "service", "sales", "marketing", "portal", "workflow", "automation", "training", "security", "guidance", "permits", "public_health"]
+  schemas  = ["core", "ui", "ops", "catalog", "service", "sales", "marketing", "portal", "workflow", "automation", "training", "security", "guidance", "permits", "public_health", "scripts"]
 }
 
 // ---- enums (single copy) ----
@@ -1124,7 +1124,10 @@ model ScriptVersion {
   version     Int
   status      String         @default("DRAFT")
   entryNodeId String?
+  entryNodeKey String?
   notes       String?
+  graphJson   Json?
+  variablesDef Json?
   createdAt   DateTime       @default(now())
   publishedAt DateTime?
 
@@ -1222,3 +1225,5 @@ model ScriptAnswer {
   @@index([runId, answeredAt])
   @@schema("guidance")
 }
+
+// (greenfield v2 models were removed for now to avoid name collision; using existing guidance models with added fields.)
